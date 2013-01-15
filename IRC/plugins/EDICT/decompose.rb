@@ -50,7 +50,7 @@ class EDICTConverter
   end
 
   def save_mecab_cache
-    return #unless @mecab_cache_dirty
+    return unless @mecab_cache_dirty
     File.open(@decomposition_file, 'w') do |io|
       Marshal.dump(@mecab_cache, io)
     end
@@ -66,7 +66,7 @@ class EDICTConverter
         combo = entry.japanese.eql?(entry.reading) || get_reading_decomposition(entry.japanese, entry.reading)
         @decomposed[:total]+=1 if combo
 
-        p "entries: #{@all_entries.size} decomposed: #@decomposed."
+        #p "entries: #{@all_entries.size} decomposed: #@decomposed."
 
         @all_entries << entry
         (@hash[:japanese][entry.japanese] ||= []) << entry
@@ -151,6 +151,7 @@ class EDICTConverter
     decomposition = @mecab_cache[japanese]
     decomposition = decomposition[reading] if decomposition
     if decomposition
+      decomposition = decomposition
       #decomposition = japanese.each_char.zip(decomposition)
     else
       decomposition = process_with_mecab(japanese)
@@ -160,28 +161,65 @@ class EDICTConverter
       return
     end
 
-    if reading_equal?(reading, gather_reading(decomposition))
-      decomposition = transplant_original(reading, decomposition)
-
-      subdec = decomposition.map do |x, y|
-        if (x.size <= 1) || (x.eql?(y))
-          [[x, y]]
-        else
-          sub = subsearch(x, y)
-          return unless sub
-          sub
-        end
-      end
-      subdec.flatten!(1)
-      result = subdec
-    else
+    unless reading_equal?(reading, gather_reading(decomposition))
       #reading_norm = hiragana(reading)
       #decomposition_norm = gather_reading_normalized(decomposition)
 
-      @decomposed[:failed_reading]+=1
+      known_start = []
+      original = reading.dup
+
+      while decomposition.size > 1
+        x, y = decomposition.shift
+        oh = hiragana(original)
+        yh = hiragana(y)
+        unless oh.size > yh.size && oh.start_with?(yh)
+          decomposition.unshift([x, y])
+          break
+        end
+        known_start << [x, original.slice!(0, y.size)]
+      end
+
+      known_end = []
+      while decomposition.size > 1
+        x, y = decomposition.pop
+        oh = hiragana(original)
+        yh = hiragana(y)
+        unless oh.size > yh.size && oh.end_with?(yh)
+          decomposition.push([x, y])
+          break
+        end
+        known_end.unshift([x, original.slice!(-y.size..-1)])
+      end
+
+      if decomposition.size > 1
+        @decomposed[:failed_reading]+=1
+        return
+      else
+        #if decomposition[0][0].size > 1
+        #  @decomposed[:partially_failed_reading]+=1
+        #  return
+        #else
+          #@decomposed[:restorable_reading]+=1
+          decomposition = (known_start << [decomposition[0][0], original]) + known_end
+        #end
+      end
       #p "entry mismatch: jap: #{japanese}; read: #{reading_norm}; decomp: #{decomposition_reading.join}"
-      return
+      #return
     end
+
+    decomposition = transplant_original(reading, decomposition)
+
+    subdec = decomposition.map do |x, y|
+      if (x.size <= 1) || (x.eql?(y))
+        [[x, y]]
+      else
+        sub = subsearch(x, y)
+        return unless sub
+        sub
+      end
+    end
+    subdec.flatten!(1)
+    result = subdec
 
 =begin
     if decomposition.size < japanese.size
@@ -221,7 +259,9 @@ class EDICTConverter
   def subsearch(japanese, reading)
     #if decomposition.size < japanese.size
       if japanese.size > 2
+        @decomposed[:unguessed_else]+=1
         @decomposed[japanese.size]+=1
+        p "j: #{japanese}; r: #{reading}"
         return
       end
       r = japanese.each_char.map do |x|
@@ -230,35 +270,42 @@ class EDICTConverter
         #p "lg: #{lg}"
         lg.select do |y|
           #p y
-          y.size < reading.size
+          y.size > 0 && y.size < reading.size
         end
       end
       r0 = r.shift
 
-      known_part = r0.find do |x|
-        reading.start_with?(x)
-      end
-
-      if known_part
-        inferred = reading[known_part.size..-1]
-        decomposition_reading = [known_part, inferred]
-      else
-        known_part = r[-1].find do |x|
-          reading.end_with?(x)
+      decomposition_reading = nil
+      if japanese.size <= 2
+        known_part = r0.find do |x|
+          reading.start_with?(x)
         end
+
         if known_part
-          inferred = reading[0..-known_part.size-1]
-          decomposition_reading = [inferred, known_part]
+          inferred = reading[known_part.size..-1]
+          decomposition_reading = [known_part, inferred]
         else
-          reads = r0.product(*r)
-          decomposition_reading = reads.find do |x|
-            reading_equal?(reading, x.join)
+          known_part = r[-1].find do |x|
+            reading.end_with?(x)
+          end
+          if known_part
+            inferred = reading[0..-known_part.size-1]
+            decomposition_reading = [inferred, known_part]
           end
         end
       end
 
       unless decomposition_reading
+        reads = r0.product(*r)
+        decomposition_reading = reads.find do |x|
+          reading_equal?(reading, x.join)
+        end
+      end
+
+      unless decomposition_reading
         @decomposed[:unguessed_two]+=1
+        p "j: #{japanese}; r: #{reading}"
+        #@decomposed[:unguessed]+=1
         #@decomposed[japanese.size]+=1
         return
       end
