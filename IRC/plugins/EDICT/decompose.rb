@@ -17,7 +17,7 @@ require_relative 'EDICTEntry'
 
 begin
 require 'MeCab' # mecab ruby binding
-  $mecab = MeCab::Tagger.new("-Ochasen2")
+  $mecab = MeCab::Tagger.new("-Ohasen2")
 rescue Exception
   $mecab = nil
 end
@@ -50,7 +50,7 @@ class EDICTConverter
   end
 
   def save_mecab_cache
-    return unless @mecab_cache_dirty
+    return #unless @mecab_cache_dirty
     File.open(@decomposition_file, 'w') do |io|
       Marshal.dump(@mecab_cache, io)
     end
@@ -106,11 +106,14 @@ class EDICTConverter
 
   def lookup_reading(japanese)
     r = @mecab_cache[japanese]
+    #p "r: #{r}"
     r = r ? r.keys.to_a : []
+    #p "jap: #{japanese}"
     r2 = process_with_mecab("膜#{japanese}")
+    #p "r2: #{r2}"
     if r2
       r2.shift
-      r2 = r2.map{|_,y| y}.join
+      r2 = r2.map{|_,y| hiragana(y)}.join
       r |= [r2]
     end
     r
@@ -126,24 +129,61 @@ class EDICTConverter
 
   def transplant_original(original, decomposition)
     original = original.dup
-    decomposition.map do |x|
-      original.slice!(0, x.size)
+    #p "#{original}: #{decomposition}"
+    decomposition.map do |x, y|
+      [x, original.slice!(0, y.size)]
     end
+  end
+
+  def gather_reading(decomposition)
+    decomposition.map { |_, y| y }.join
+  end
+
+  def gather_reading_normalized(decomposition)
+    decomposition.map { |_, y| hiragana(y) }
   end
 
   def get_reading_decomposition(japanese, reading)
     if japanese.size <= 1
-      put_to_decomposition_cache(japanese, reading, [reading])
+      #put_to_decomposition_cache(japanese, reading, [reading])
       return [reading]
     end
     decomposition = @mecab_cache[japanese]
     decomposition = decomposition[reading] if decomposition
-    decomposition = process_with_mecab(japanese) unless decomposition
+    if decomposition
+      #decomposition = japanese.each_char.zip(decomposition)
+    else
+      decomposition = process_with_mecab(japanese)
+    end
     unless decomposition
       @decomposed[:parse_fail]+=1
       return
     end
 
+    if reading_equal?(reading, gather_reading(decomposition))
+      decomposition = transplant_original(reading, decomposition)
+
+      subdec = decomposition.map do |x, y|
+        if (x.size <= 1) || (x.eql?(y))
+          [[x, y]]
+        else
+          sub = subsearch(x, y)
+          return unless sub
+          sub
+        end
+      end
+      subdec.flatten!(1)
+      result = subdec
+    else
+      #reading_norm = hiragana(reading)
+      #decomposition_norm = gather_reading_normalized(decomposition)
+
+      @decomposed[:failed_reading]+=1
+      #p "entry mismatch: jap: #{japanese}; read: #{reading_norm}; decomp: #{decomposition_reading.join}"
+      return
+    end
+
+=begin
     if decomposition.size < japanese.size
       if japanese.size > 2
         @decomposed[japanese.size]+=1
@@ -163,30 +203,72 @@ class EDICTConverter
       end
       result = transplant_original(reading, decomposition_reading)
     else
-      decomposition_reading = decomposition.map { |_, y| y }
-
-      if reading_equal?(reading, decomposition_reading.join)
-        result = transplant_original(reading, decomposition_reading)
-        #subdec = result.map do |x, y|
-        #  x.size > 1 ? get_reading_decomposition(x, y) : [[x, y]]
-        #end
-        #subdec.flatten!(1)
-        #result = subdec
-      else
-        @decomposed[:failed_reading]+=1
-        #p "entry mismatch: jap: #{japanese}; read: #{reading_norm}; decomp: #{decomposition_reading.join}"
-        return
-      end
+      result = decomposition
     end
+=end
 
     put_to_decomposition_cache(japanese, reading, result)
 
-    sub_cases = japanese.each_char.zip(result)
+    #sub_cases = japanese.each_char.zip(result)
+    sub_cases = result
     sub_cases.each do |j, r|
-      put_to_decomposition_cache(j, r, [r])
+      put_to_decomposition_cache(j, r, [[j, r]])
     end
 
     result
+  end
+
+  def subsearch(japanese, reading)
+    #if decomposition.size < japanese.size
+      if japanese.size > 2
+        @decomposed[japanese.size]+=1
+        return
+      end
+      r = japanese.each_char.map do |x|
+        #p "x: #{x}"
+        lg = lookup_reading(x)
+        #p "lg: #{lg}"
+        lg.select do |y|
+          #p y
+          y.size < reading.size
+        end
+      end
+      r0 = r.shift
+
+      known_part = r0.find do |x|
+        reading.start_with?(x)
+      end
+
+      if known_part
+        inferred = reading[known_part.size..-1]
+        decomposition_reading = [known_part, inferred]
+      else
+        known_part = r[-1].find do |x|
+          reading.end_with?(x)
+        end
+        if known_part
+          inferred = reading[0..-known_part.size-1]
+          decomposition_reading = [inferred, known_part]
+        else
+          reads = r0.product(*r)
+          decomposition_reading = reads.find do |x|
+            reading_equal?(reading, x.join)
+          end
+        end
+      end
+
+      unless decomposition_reading
+        @decomposed[:unguessed_two]+=1
+        #@decomposed[japanese.size]+=1
+        return
+      end
+
+      decomposition = japanese.each_char.zip(decomposition_reading)
+
+      result = transplant_original(reading, decomposition)
+    #else
+    #  result = decomposition
+    #end
   end
 
   def put_to_decomposition_cache(japanese, reading, result)
@@ -203,6 +285,7 @@ class EDICTConverter
 
     output.each_line.map do |line|
       break if line.start_with?('EOS')
+      return if line.start_with?('UNK')
 
       # "なっ\tナッ\tなる\t動詞-自立\t五段・ラ行\t連用タ接続"
       fields = line.split("\t")
@@ -211,10 +294,35 @@ class EDICTConverter
       part = fields.shift
       reading = fields.shift
 
+      unless is_katakana?(reading)
+        return
+      end
+
       result << [part, reading]
     end
 
     result
+  end
+
+  def is_katakana?(text)
+    # 30A0-30FF katakana
+    # FF61-FF9D half-width katakana
+    # 31F0-31FF katakana phonetic extensions
+    #
+    # Source: http://www.unicode.org/charts/
+    !!(text =~ /^[\u30A0-\u30FF\uFF61-\uFF9D\u31F0-\u31FF]+$/)
+  end
+
+  def is_kanji?(text)
+    # 3040-309F hiragana
+    # 30A0-30FF katakana
+    # 4E00-9FC2 kanji
+    # FF61-FF9D half-width katakana
+    # 31F0-31FF katakana phonetic extensions
+    # 3000-303F CJK punctuation
+    #
+    # Source: http://www.unicode.org/charts/
+    !!(text =~ /^[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FC2\uFF61-\uFF9D\u31F0-\u31FF\u3000-\u303F]+$/)
   end
 end
 
