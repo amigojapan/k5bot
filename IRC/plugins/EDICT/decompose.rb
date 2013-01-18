@@ -42,7 +42,14 @@ class JapaneseReadingDecomposer
 
     @decomposed = Hash.new() {|h,k| 0}
 
-    @mecab_readings = {}
+    @mecab_readings = Hash.new() do |h, kanji|
+      r2 = process_with_mecab("膜#{kanji}")
+      if r2
+        r2.shift
+        r2.map!{|_,y| hiragana(y)}
+        r2
+      end
+    end
   end
 
   def load_dict
@@ -70,7 +77,7 @@ class JapaneseReadingDecomposer
       combo = entry.japanese.eql?(entry.reading) || get_reading_decomposition(entry.japanese, entry.reading)
       @decomposed[:total]+=1 if combo
 
-      p "entries: #{index}; Decomposed: #@decomposed"
+      #p "entries: #{index}; Decomposed: #@decomposed"
 
       #process_with_mecab(entry.japanese)
     end
@@ -87,13 +94,9 @@ class JapaneseReadingDecomposer
     #p "r: #{r}"
     r = r ? r.keys.to_a : []
     #p "jap: #{japanese}"
-    r2 = @mecab_readings[japanese] ||= process_with_mecab("膜#{japanese}")
+    r2 = @mecab_readings[japanese]
+    r |= r2 if r2
     #p "r2: #{r2}"
-    if r2
-      r2.shift
-      r2 = r2.map{|_,y| hiragana(y)}.join
-      r |= [r2]
-    end
     r
   end
 
@@ -147,7 +150,7 @@ class JapaneseReadingDecomposer
   end
 
   def get_reading_decomposition(japanese, reading)
-    p "j: #{japanese} r: #{reading}"
+    #p "j: #{japanese} r: #{reading}"
     case japanese.size
     when 0
       raise "Fuckup"
@@ -230,9 +233,18 @@ class JapaneseReadingDecomposer
       if (x.size <= 1) || reading_equal?(x, y)
         [[x, y]]
       else
-        sub = subsearch(x, y)
-        return unless sub
-        sub
+        sub = subsearch3(x, y)
+        unless sub
+          @decomposed[:unbreakable]+=1
+          return
+        end
+        if sub.size > 1
+          puts "j: #{japanese} r: #{reading} a: #{sub}"
+          @decomposed[:ambiguous]+=1
+          return
+        end
+
+        sub[0]
       end
 
 #      sub = get_reading_decomposition(x, y)
@@ -323,6 +335,8 @@ class JapaneseReadingDecomposer
             decomposition_reading = [inferred, known_part]
           end
         end
+      else
+
       end
 
       unless decomposition_reading
@@ -334,7 +348,7 @@ class JapaneseReadingDecomposer
 
       unless decomposition_reading
         @decomposed[:unguessed_two]+=1
-        p "j: #{japanese}; r: #{reading}"
+        #p "j: #{japanese}; r: #{reading}"
         #@decomposed[:unguessed]+=1
         #@decomposed[japanese.size]+=1
         return
@@ -346,6 +360,68 @@ class JapaneseReadingDecomposer
     #else
     #  result = decomposition
     #end
+  end
+
+  def subsearch3(japanese, reading)
+    if japanese.size <= 1
+      return [[[japanese, reading]]]
+    end
+
+    head = japanese[0]
+
+    lg = lookup_reading(head)
+    lg = lg.select do |y|
+      y.size > 0 && y.size < reading.size && reading.start_with?(y)
+    end
+
+    return subsearch4(japanese, reading) if lg.empty?
+
+    tail = japanese[1..-1]
+
+    result = lg.map do |guess|
+      sub = subsearch3(tail, reading[guess.size..-1])
+      next unless sub
+      decomp = [head, guess]
+      sub.each do |sub_decomp|
+        sub_decomp.unshift(decomp)
+      end
+    end
+
+    result.flatten!(1)
+    result = result.select {|x| !x.nil?}
+
+    result unless result.empty?
+  end
+
+  def subsearch4(japanese, reading)
+    if japanese.size <= 1
+      return [[[japanese, reading]]]
+    end
+
+    head = japanese[-1]
+
+    lg = lookup_reading(head)
+    lg = lg.select do |y|
+      y.size > 0 && y.size < reading.size && reading.end_with?(y)
+    end
+
+    return if lg.empty?
+
+    tail = japanese[0..-2]
+
+    result = lg.map do |guess|
+      sub = subsearch4(tail, reading[0..-guess.size-1])
+      next unless sub
+      decomp = [head, guess]
+      sub.each do |sub_decomp|
+        sub_decomp.push(decomp)
+      end
+    end
+
+    result.flatten!(1)
+    result = result.select {|x| !x.nil?}
+
+    result unless result.empty?
   end
 
   def put_to_decomposition_cache(japanese, reading, result)
@@ -371,9 +447,9 @@ class JapaneseReadingDecomposer
       part = fields.shift
       reading = fields.shift
 
-      unless is_japanese?(part)
-        print "#{part}\n"
-      end
+      #unless is_japanese?(part)
+      #  print "#{part}\n"
+      #end
       unless is_katakana?(reading)
         #p reading
         return
