@@ -33,6 +33,10 @@ raise "Can't load Language plugin" unless plugin_manager.load_plugin(:Language)
 
 $language = plugin_manager.plugins[:Language]
 
+class Decomposition < Array
+  attr_accessor :guessed
+end
+
 class JapaneseReadingDecomposer
   attr_reader :hash
 
@@ -59,11 +63,12 @@ class JapaneseReadingDecomposer
   end
 
   def load_mecab_cache
-    @mecab_cache_old = File.open(@decomposition_file, 'r') do |io|
+    @mecab_cache = File.open(@decomposition_file, 'r') do |io|
       Marshal.load(io)
     end rescue {}
-    @mecab_cache = {}
-    @mecab_cache_dirty = @mecab_cache_old.empty?
+    #@mecab_cache = {}
+    @mecab_cache_origin = {}
+    @mecab_cache_dirty = @mecab_cache.empty?
   end
 
   def save_mecab_cache
@@ -91,7 +96,7 @@ class JapaneseReadingDecomposer
   end
 
   def lookup_reading(japanese)
-    r = @mecab_cache_old[japanese]
+    r = @mecab_cache[japanese]
     #p "r: #{r}"
     r = r ? r.keys.to_a : []
     #p "jap: #{japanese}"
@@ -166,14 +171,14 @@ class JapaneseReadingDecomposer
         return result
       end
     end
-    decomposition = @mecab_cache[japanese]
-    decomposition = decomposition[reading] if decomposition
-    if decomposition
-      #decomposition = expand(japanese, decomposition)
-      return expand(japanese, decomposition)
-    else
+    #decomposition = @mecab_cache[japanese]
+    #decomposition = decomposition[reading] if decomposition
+    #if decomposition
+    #  #decomposition = expand(japanese, decomposition)
+    #  return expand(japanese, decomposition)
+    #else
       decomposition = process_with_mecab(japanese)
-    end
+    #end
     unless decomposition
       @decomposed[:parse_fail]+=1
       return
@@ -365,17 +370,21 @@ class JapaneseReadingDecomposer
 
   def subsearch3(japanese, reading)
     if is_kana?(japanese)
-      return reading_equal?(japanese, reading) ? [[[japanese, reading]]] : nil
+      return reading_equal?(japanese, reading) ? [Decomposition.new([[japanese, reading]])] : nil
     end
-    if japanese.size <= 1
-      return reading.size>0 ? [[[japanese, reading]]] : nil
+    if japanese.size <= 0
+      #return reading.size>0 ? [[[japanese, reading]]] : nil
+      return reading.size>0 ? nil : [Decomposition.new()]
     end
+
+    last_take = japanese.size == 1
+    allowed_take = last_take ? reading.size + 1 : reading.size
 
     head = japanese[0]
 
     lg = lookup_reading(head)
     lg = lg.select do |y|
-      y.size > 0 && y.size < reading.size && reading.start_with?(y)
+      y.size > 0 && y.size < allowed_take && reading.start_with?(y)
     end
 
     return subsearch4(japanese, reading) if lg.empty?
@@ -399,17 +408,21 @@ class JapaneseReadingDecomposer
 
   def subsearch4(japanese, reading)
     if is_kana?(japanese)
-      return reading_equal?(japanese, reading) ? [[[japanese, reading]]] : nil
+      return reading_equal?(japanese, reading) ? [Decomposition.new([[japanese, reading]])] : nil
     end
-    if japanese.size <= 1
-      return reading.size>0 ? [[[japanese, reading]]] : nil
+    if japanese.size <= 0
+      #return reading.size>0 ? [[[japanese, reading]]] : nil
+      return reading.size>0 ? nil : [Decomposition.new()]
     end
+
+    last_take = japanese.size == 1
+    allowed_take = last_take ? reading.size + 1 : reading.size
 
     head = japanese[-1]
 
     lg = lookup_reading(head)
     lg = lg.select do |y|
-      y.size > 0 && y.size < reading.size && reading.end_with?(y)
+      y.size > 0 && y.size < allowed_take && reading.end_with?(y)
     end
 
     return if lg.empty?
