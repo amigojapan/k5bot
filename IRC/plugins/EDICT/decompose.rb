@@ -59,10 +59,11 @@ class JapaneseReadingDecomposer
   end
 
   def load_mecab_cache
-    @mecab_cache = File.open(@decomposition_file, 'r') do |io|
+    @mecab_cache_old = File.open(@decomposition_file, 'r') do |io|
       Marshal.load(io)
     end rescue {}
-    @mecab_cache_dirty = @mecab_cache.empty?
+    @mecab_cache = {}
+    @mecab_cache_dirty = @mecab_cache_old.empty?
   end
 
   def save_mecab_cache
@@ -90,7 +91,7 @@ class JapaneseReadingDecomposer
   end
 
   def lookup_reading(japanese)
-    r = @mecab_cache[japanese]
+    r = @mecab_cache_old[japanese]
     #p "r: #{r}"
     r = r ? r.keys.to_a : []
     #p "jap: #{japanese}"
@@ -363,8 +364,11 @@ class JapaneseReadingDecomposer
   end
 
   def subsearch3(japanese, reading)
+    if is_kana?(japanese)
+      return reading_equal?(japanese, reading) ? [[[japanese, reading]]] : nil
+    end
     if japanese.size <= 1
-      return [[[japanese, reading]]]
+      return reading.size>0 ? [[[japanese, reading]]] : nil
     end
 
     head = japanese[0]
@@ -394,8 +398,11 @@ class JapaneseReadingDecomposer
   end
 
   def subsearch4(japanese, reading)
+    if is_kana?(japanese)
+      return reading_equal?(japanese, reading) ? [[[japanese, reading]]] : nil
+    end
     if japanese.size <= 1
-      return [[[japanese, reading]]]
+      return reading.size>0 ? [[[japanese, reading]]] : nil
     end
 
     head = japanese[-1]
@@ -492,6 +499,16 @@ class JapaneseReadingDecomposer
     #
     # Source: http://www.unicode.org/charts/
     !!(text =~ /^[\u30A0-\u30FF\uFF61-\uFF9D\u31F0-\u31FF]+$/)
+  end
+
+  def is_kana?(text)
+    # 3040-309F hiragana
+    # 30A0-30FF katakana
+    # FF61-FF9D half-width katakana
+    # 31F0-31FF katakana phonetic extensions
+    #
+    # Source: http://www.unicode.org/charts/
+    !!(text =~ /^[\u3040-\u309F\u30A0-\u30FF\uFF61-\uFF9D\u31F0-\u31FF]+$/)
   end
 
   def is_japanese?(text)
