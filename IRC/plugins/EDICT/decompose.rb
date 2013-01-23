@@ -18,7 +18,7 @@ require_relative '../../IRCPluginManager'
 
 require_relative 'EDICTEntry'
 
-$mecab = MeCab::Tagger.new("-Ohasen2")
+$mecab = MeCab::Tagger.new("-Ochasen2")
 
 class TmpPluginManager < IRCPluginManager
   def find_config_entry(name)
@@ -458,7 +458,6 @@ class JapaneseReadingDecomposer
 
     output.each_line.map do |line|
       break if line.start_with?('EOS')
-      return if line.start_with?('UNK')
 
       # "なっ\tナッ\tなる\t動詞-自立\t五段・ラ行\t連用タ接続"
       fields = line.split("\t")
@@ -470,10 +469,6 @@ class JapaneseReadingDecomposer
       #unless is_japanese?(part)
       #  print "#{part}\n"
       #end
-      unless is_katakana?(reading)
-        #p reading
-        return
-      end
 
       result << [part, reading]
     end
