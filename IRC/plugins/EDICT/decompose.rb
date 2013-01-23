@@ -46,12 +46,17 @@ class JapaneseReadingDecomposer
     @decomposition_file = decomposition_file
     @exclusion_file = exclusion_file
 
-    @decomposed = Hash.new() {|h,k| 0}
+    @decomposition_statistics = Hash.new() {|_,_| 0}
 
-    @mecab_readings = Hash.new() do |h, kanji|
+    @mecab_readings = Hash.new() do |_, kanji|
+      # Try to guess on-reading by combining given kanji with 膜 (random kanji)
       r2 = process_with_mecab("膜#{kanji}")
       if r2
+        # and then stripping off reading of 膜.
         r2.shift
+        # Now there must be just one [japanese, reading] pair,
+        # but we're too lazy to check that.
+        # Strip off japanese, and convert reading to hiragana.
         r2.map!{|_,y| hiragana(y)}
         r2
       end
@@ -65,56 +70,47 @@ class JapaneseReadingDecomposer
   end
 
   def load_mecab_cache
-    @mecab_cache = File.open(@decomposition_file, 'r') do |io|
+    @decomposition_cache = File.open(@decomposition_file, 'r') do |io|
       Marshal.load(io)
     end rescue {}
-    #@mecab_cache = {}
+
     excl = File.open(@exclusion_file, 'r') do |io|
       Marshal.load(io)
     end rescue {}
-    @mecab_exclusions = Set.new()
+    @decomposition_exclusions = Set.new()
     excl.each_pair do |japanese, reading_array|
       reading_array.each do |reading|
-        @mecab_exclusions.add([japanese, reading])
+        @decomposition_exclusions.add([japanese, reading])
       end
     end
-
-    @mecab_cache_origin = {}
-    @mecab_cache_dirty = @mecab_cache.empty?
   end
 
   def save_mecab_cache
-    return unless @mecab_cache_dirty
     File.open(@decomposition_file, 'w') do |io|
-      Marshal.dump(@mecab_cache, io)
+      Marshal.dump(@decomposition_cache, io)
     end
   end
 
   def decompose
     @hash[:all].each_with_index do |entry, index|
       combo = entry.japanese.eql?(entry.reading) || get_reading_decomposition(entry.japanese, entry.reading)
-      @decomposed[:total]+=1 if combo
+      @decomposition_statistics[:total]+=1 if combo
 
-      #p "entries: #{index}; Decomposed: #@decomposed"
-
-      #process_with_mecab(entry.japanese)
+      if index % 1000 == 0
+        p "Entries: #{index}; Statistics: #@decomposition_statistics"
+      end
     end
 
-    puts "Entries: #{@hash[:all].size}; Decomposed: #@decomposed"
-  end
-
-  def nl(a, b)
-    a[b] if a
+    puts "Entries: #{@hash[:all].size}; Statistics: #@decomposition_statistics"
   end
 
   def lookup_reading(japanese)
-    r = @mecab_cache[japanese]
-    #p "r: #{r}"
+    # Get known readings from cache.
+    r = @decomposition_cache[japanese]
     r = r ? r.keys.to_a : []
-    #p "jap: #{japanese}"
+    # Throw in mecab-suggested reading for a good measure.
     r2 = @mecab_readings[japanese]
     r |= r2 if r2
-    #p "r2: #{r2}"
     r
   end
 
@@ -122,13 +118,8 @@ class JapaneseReadingDecomposer
     hiragana(r1).eql?(hiragana(r2))
   end
 
-  def reading_transplant?(r1, r2)
-    hiragana(r1).eql?(hiragana(r2))
-  end
-
-  def transplant_original(original, decomposition)
+  def transplant_original_reading(original, decomposition)
     original = original.dup
-    #p "#{original}: #{decomposition}"
     decomposition.map do |x, y|
       [x, original.slice!(0, y.size)]
     end
@@ -136,10 +127,6 @@ class JapaneseReadingDecomposer
 
   def gather_reading(decomposition)
     decomposition.map { |_, y| y }.join
-  end
-
-  def gather_reading_normalized(decomposition)
-    decomposition.map { |_, y| hiragana(y) }
   end
 
   def expand(japanese, decomposition)
@@ -168,104 +155,107 @@ class JapaneseReadingDecomposer
   end
 
   def get_reading_decomposition(japanese, reading)
-    #p "j: #{japanese} r: #{reading}"
     case japanese.size
     when 0
-      raise "Fuckup"
+      raise "Bug! We should be never asked for reading decomposition of an empty word."
     when 1
+      # Given japanese word is just one symbol, there's nothing to decompose.
       result = [reading]
       put_to_decomposition_cache(japanese, reading, result)
       return result
     else
       if reading_equal?(japanese, reading)
+        # This is a kana/kana entry, or similar, so
+        # there's char-by-char correspondence between readings.
         result = reading.each_char.to_a
         put_to_decomposition_cache(japanese, reading, result)
         return result
       end
     end
-    #decomposition = @mecab_cache[japanese]
-    #decomposition = decomposition[reading] if decomposition
-    #if decomposition
-    #  #decomposition = expand(japanese, decomposition)
-    #  return expand(japanese, decomposition)
-    #else
-      decomposition = process_with_mecab(japanese)
-    #end
+
+    decomposition = process_with_mecab(japanese)
     unless decomposition
-      @decomposed[:parse_fail]+=1
+      @decomposition_statistics[:parse_fail]+=1
       return
     end
 
     unless reading_equal?(reading, gather_reading(decomposition))
-      #reading_norm = hiragana(reading)
-      #decomposition_norm = gather_reading_normalized(decomposition)
+      # Mecab-suggested decomposition doesn't match "#{reading}",
+      # which is assumed to be correct. Let's attempt to restore
+      # the reading, if there's only one wrong [japanese, reading] pair.
 
       known_start = []
-      original = reading.dup
+      reading_guess = reading.dup
 
       while decomposition.size > 1
         x, y = decomposition.shift
-        oh = hiragana(original)
+        oh = hiragana(reading_guess)
         yh = hiragana(y)
         unless oh.size > yh.size && oh.start_with?(yh)
           decomposition.unshift([x, y])
           break
         end
-        known_start << [x, original.slice!(0, y.size)]
+        known_start << [x, reading_guess.slice!(0, y.size)]
       end
 
       known_end = []
       while decomposition.size > 1
         x, y = decomposition.pop
-        oh = hiragana(original)
+        oh = hiragana(reading_guess)
         yh = hiragana(y)
         unless oh.size > yh.size && oh.end_with?(yh)
           decomposition.push([x, y])
           break
         end
-        known_end.unshift([x, original.slice!(-y.size..-1)])
+        known_end.unshift([x, reading_guess.slice!(-y.size..-1)])
       end
 
       if decomposition.size > 1
-        @decomposed[:failed_reading]+=1
+        # Stripping matching readings didn't result in
+        # a single invalid pair. Give up.
+        @decomposition_statistics[:failed_reading]+=1
         return
-      else
-        #if decomposition[0][0].size > 1
-        #  @decomposed[:partially_failed_reading]+=1
-        #  return
-        #else
-          #@decomposed[:restorable_reading]+=1
-          #decomposition = (known_start << [decomposition[0][0], original]) + known_end
-        #end
-
-        guess = decomposition[0][0]
-
-        if is_kana?(guess) && !reading_equal?(guess, reading)
-          @decomposed[:dangerously_failed_reading]+=1
-          return
-        end
-        if sanity_check_failure?(guess, reading)
-          @decomposed[:reading_sanity_fail]+=1
-          return
-        end
-
-        decomposition = (known_start << [guess, original]) + known_end
       end
-      #p "entry mismatch: jap: #{japanese}; read: #{reading_norm}; decomp: #{decomposition_reading.join}"
-      #return
+
+      # We reduced mismatch to a single [japanese, wrong_reading] pair.
+      # Extract japanese.
+      japanese_guess = decomposition[0][0]
+
+      # There are tricky cases, when such guessing is dangerous and produces
+      # wrong pair. Let's try to avoid that.
+
+      # This is for cases, when mismatch results in assigning "new reading" to a kana.
+      # i.e. ["い", "がい"]. The amount of mess this may cause is beyond imagination.
+      if is_all_kana?(japanese_guess) && !reading_equal?(japanese_guess, reading)
+        @decomposition_statistics[:dangerously_failed_reading]+=1
+        return
+      end
+      if sanity_check_failure?(japanese_guess, reading)
+        @decomposition_statistics[:reading_sanity_fail]+=1
+        return
+      end
+
+      # Everything seems to be ok. Reconstruct decomposition with corrected pair.
+      decomposition = (known_start << [japanese_guess, reading_guess]) + known_end
     end
 
-    #return if decomposition.size <=1
+    # Mecab produces katakana reading. Replace that with what's in "#{reading}".
+    decomposition = transplant_original_reading(reading, decomposition)
 
-    decomposition = transplant_original(reading, decomposition)
-
-    subdec = decomposition.map do |x, y|
-      if (x.size <= 1) || reading_equal?(x, y)
+    # Mecab has only split up to word/stem detail.
+    # Let's try to sub-split each of them on per-character basis.
+    sub_decomposition = decomposition.map do |x, y|
+      if x.size <= 1
+        # Nothing to split
         [[x, y]]
+      elsif reading_equal?(x, y)
+        # This is a kana/kana entry, or similar, so
+        # there's char-by-char correspondence between readings.
+        x.each_char.zip(reading.each_char)
       else
-        sub = subsearch3(x, y)
+        sub = sub_decompose_reading(x, y)
         unless sub
-          @decomposed[:unbreakable]+=1
+          @decomposition_statistics[:unbreakable]+=1
           return
         end
         if sub.size > 1
@@ -280,18 +270,17 @@ class JapaneseReadingDecomposer
               sub_decomp.guessed
             end
           end
-          #subsearch3(x, y)
           case sub.size
           when 0
             puts "guessed: j: #{japanese} r: #{reading} a: #{bub}"
-            @decomposed[:ambiguous_guessed]+=1
+            @decomposition_statistics[:ambiguous_guessed]+=1
             return
           when 1
             puts "restored: j: #{japanese} r: #{reading} a: #{bub}"
-            @decomposed[:ambiguous_restored]+=1
+            @decomposition_statistics[:ambiguous_restored]+=1
           else
             puts "unguessed: j: #{japanese} r: #{reading} a: #{bub}"
-            @decomposed[:ambiguous_unguessed]+=1
+            @decomposition_statistics[:ambiguous_unguessed]+=1
             return
           end
         end
@@ -299,137 +288,41 @@ class JapaneseReadingDecomposer
         sub[0]
       end
 
-#      sub = get_reading_decomposition(x, y)
-#      return unless sub
-#      expand(x, sub)
     end
-    subdec.flatten!(1)
-    result = subdec
+    result = sub_decomposition.flatten(1)
 
-=begin
-    if decomposition.size < japanese.size
-      if japanese.size > 2
-        @decomposed[japanese.size]+=1
-        return
-      end
-      r1 = lookup_reading(japanese[0])
-      r2 = lookup_reading(japanese[1])
-      reads = r1.product(r2)
-
-      decomposition_reading = reads.find do |x|
-        reading_equal?(reading, x.join)
-      end
-
-      unless decomposition_reading
-        @decomposed[:unguessed_two]+=1
-        return
-      end
-      result = transplant_original(reading, decomposition_reading)
-    else
-      result = decomposition
+    # Put all guessed separate reading pairs into cache,
+    # to help us with decomposing further entries (see lookup_reading()).
+    result.each do |j, r|
+      put_to_decomposition_cache(j, r, [r])
     end
-=end
+
     compacted = compact(result)
     put_to_decomposition_cache(japanese, reading, compacted)
 
-    #sub_cases = japanese.each_char.zip(result)
-    sub_cases = result
-    sub_cases.each do |j, r|
-      put_to_decomposition_cache(j, r, [r])
-      put_to_decomposition_origin_cache(j, r, [[japanese, reading]])
-    end
-
-    result
+    compacted
   end
 
+  # Checks some basic things that should be true of any reading pair
   def sanity_check_failure?(j, r)
     c = r[0]
-    if c.match[/[んっょゅゃ]/]
+    if c.match(/[んっょゅゃ]/)
+      # Reading can start with those chars,
+      # only if japanese starts with the same char.
       return true unless reading_equal?(c, j[0])
     end
-    @mecab_exclusions.include?([j, r])
+    # Check user-defined rules.
+    @decomposition_exclusions.include?([j, r])
   end
 
-  def subsearch2(japanese, reading)
-    decomposition = @mecab_cache[japanese]
-    decomposition = decomposition[reading] if decomposition
-    return expand(japanese, decomposition) if decomposition
-
-    @decomposed[:unguessed]+=1
-    nil
-  end
-
-  def subsearch(japanese, reading)
-    #if decomposition.size < japanese.size
-      #if japanese.size > 2
-      #  @decomposed[:unguessed_else]+=1
-      #  @decomposed[japanese.size]+=1
-      #  p "j: #{japanese}; r: #{reading}"
-      #  return
-      #end
-      r = japanese.each_char.map do |x|
-        #p "x: #{x}"
-        lg = lookup_reading(x)
-        #p "lg: #{lg}"
-        lg.select do |y|
-          #p y
-          y.size > 0 && y.size < reading.size
-        end
-      end
-      r0 = r.shift
-
-      decomposition_reading = nil
-      if japanese.size <= 2
-        known_part = r0.find do |x|
-          reading.start_with?(x)
-        end
-
-        if known_part
-          inferred = reading[known_part.size..-1]
-          decomposition_reading = [known_part, inferred]
-        else
-          known_part = r[-1].find do |x|
-            reading.end_with?(x)
-          end
-          if known_part
-            inferred = reading[0..-known_part.size-1]
-            decomposition_reading = [inferred, known_part]
-          end
-        end
-      else
-
-      end
-
-      unless decomposition_reading
-        reads = r0.product(*r)
-        decomposition_reading = reads.find do |x|
-          reading_equal?(reading, x.join)
-        end
-      end
-
-      unless decomposition_reading
-        @decomposed[:unguessed_two]+=1
-        #p "j: #{japanese}; r: #{reading}"
-        #@decomposed[:unguessed]+=1
-        #@decomposed[japanese.size]+=1
-        return
-      end
-
-      decomposition = japanese.each_char.zip(decomposition_reading)
-
-      result = transplant_original(reading, decomposition)
-    #else
-    #  result = decomposition
-    #end
-  end
-
-  def subsearch3(japanese, reading)
+  def sub_decompose_reading(japanese, reading)
     if japanese.size <= 0
-      #return reading.size>0 ? [[[japanese, reading]]] : nil
+      # if we exhausted japanese before reading - give up,
+      # otherwise it's simultaneous exhaustion, return new decomposition root.
       return reading.size>0 ? nil : [Decomposition.new()]
     end
     return [Decomposition.new([[japanese, reading]])] if reading_equal?(japanese, reading)
-    return nil if is_kana?(japanese) # japanese is fully kana but reading doesn't match. failure.
+    return nil if is_all_kana?(japanese) # japanese is fully kana, but reading doesn't match. failure.
 
     last_take = japanese.size == 1
     allowed_take = last_take ? reading.size + 1 : reading.size
@@ -441,12 +334,12 @@ class JapaneseReadingDecomposer
       y.size > 0 && y.size < allowed_take && reading.start_with?(y)
     end
 
-    return subsearch4(japanese, reading) if lg.empty?
+    return sub_decompose_reading_tail(japanese, reading) if lg.empty?
 
     tail = japanese[1..-1]
 
     result = lg.map do |guess|
-      sub = subsearch3(tail, reading[guess.size..-1])
+      sub = sub_decompose_reading(tail, reading[guess.size..-1])
       next unless sub
       decomp = [head, guess]
       sub.each do |sub_decomp|
@@ -460,13 +353,14 @@ class JapaneseReadingDecomposer
     result unless result.empty?
   end
 
-  def subsearch4(japanese, reading)
+  def sub_decompose_reading_tail(japanese, reading)
     if japanese.size <= 0
-      #return reading.size>0 ? [[[japanese, reading]]] : nil
+      # if we exhausted japanese before reading - give up,
+      # otherwise it's simultaneous exhaustion, return new decomposition root.
       return reading.size>0 ? nil : [Decomposition.new()]
     end
     return [Decomposition.new([[japanese, reading]])] if reading_equal?(japanese, reading)
-    return nil if is_kana?(japanese) # japanese is fully kana but reading doesn't match. failure.
+    return nil if is_all_kana?(japanese) # japanese is fully, kana but reading doesn't match. failure.
 
     last_take = japanese.size == 1
     allowed_take = last_take ? reading.size + 1 : reading.size
@@ -480,8 +374,11 @@ class JapaneseReadingDecomposer
 
     if lg.empty?
       return if japanese.size > 1
-      #p "Guess: j: #{japanese}; r: #{reading}"
+      # So we have only one kanji, let's assume, that
+      # what remained of reading belongs to it.
       result = Decomposition.new([[japanese, reading]])
+      # We mark such entry specifically, to be able to filter it out,
+      # in case we have better candidates.
       result.guessed = true
       return [result]
     end
@@ -489,7 +386,7 @@ class JapaneseReadingDecomposer
     tail = japanese[0..-2]
 
     result = lg.map do |guess|
-      sub = subsearch4(tail, reading[0..-guess.size-1])
+      sub = sub_decompose_reading_tail(tail, reading[0..-guess.size-1])
       next unless sub
       decomp = [head, guess]
       sub.each do |sub_decomp|
@@ -504,13 +401,7 @@ class JapaneseReadingDecomposer
   end
 
   def put_to_decomposition_cache(japanese, reading, result)
-    (@mecab_cache[japanese] ||= {})[reading] = result
-    @mecab_cache_dirty = true
-  end
-
-  def put_to_decomposition_origin_cache(japanese, reading, result)
-    (@mecab_cache_origin[japanese] ||= {})[reading] ||= []
-    @mecab_cache_origin[japanese][reading] |= result
+    (@decomposition_cache[japanese] ||= {})[reading] = result
   end
 
   def process_with_mecab(text)
@@ -530,16 +421,15 @@ class JapaneseReadingDecomposer
       part = fields.shift
       reading = fields.shift
 
-      #unless is_japanese?(part)
-      #  print "#{part}\n"
-      #end
-
       result << [part, reading]
     end
 
     remerge_non_japanese(result)
   end
 
+  # Some things can't have correct reading correspondence.
+  # E.g. naively, 1 would be assigned "じゅう" and "ひゃく" readings.
+  # This procedure merges such things in clusters, that can have valid readings.
   def remerge_non_japanese(decomposition)
     prev = nil
     decomposition.delete_if do |x|
@@ -564,7 +454,7 @@ class JapaneseReadingDecomposer
     $language.hiragana(text)
   end
 
-  def is_katakana?(text)
+  def is_all_katakana?(text)
     # 30A0-30FF katakana
     # FF61-FF9D half-width katakana
     # 31F0-31FF katakana phonetic extensions
@@ -573,7 +463,7 @@ class JapaneseReadingDecomposer
     !!(text =~ /^[\u30A0-\u30FF\uFF61-\uFF9D\u31F0-\u31FF]+$/)
   end
 
-  def is_kana?(text)
+  def is_all_kana?(text)
     # 3040-309F hiragana
     # 30A0-30FF katakana
     # FF61-FF9D half-width katakana
@@ -583,7 +473,7 @@ class JapaneseReadingDecomposer
     !!(text =~ /^[\u3040-\u309F\u30A0-\u30FF\uFF61-\uFF9D\u31F0-\u31FF]+$/)
   end
 
-  def is_japanese?(text)
+  def is_all_japanese?(text)
     # 3040-309F hiragana
     # 30A0-30FF katakana
     # 4E00-9FC2 kanji
