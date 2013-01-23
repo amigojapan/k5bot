@@ -13,6 +13,7 @@ $VERBOSE = true
 
 require 'yaml'
 require 'MeCab' # mecab ruby binding
+require 'set'
 
 require_relative '../../IRCPluginManager'
 
@@ -40,9 +41,10 @@ end
 class JapaneseReadingDecomposer
   attr_reader :hash
 
-  def initialize(edict_file, decomposition_file)
+  def initialize(edict_file, decomposition_file, exclusion_file)
     @edict_file = edict_file
     @decomposition_file = decomposition_file
+    @exclusion_file = exclusion_file
 
     @decomposed = Hash.new() {|h,k| 0}
 
@@ -67,6 +69,16 @@ class JapaneseReadingDecomposer
       Marshal.load(io)
     end rescue {}
     #@mecab_cache = {}
+    excl = File.open(@exclusion_file, 'r') do |io|
+      Marshal.load(io)
+    end rescue {}
+    @mecab_exclusions = Set.new()
+    excl.each_pair do |japanese, reading_array|
+      reading_array.each do |reading|
+        @mecab_exclusions.add([japanese, reading])
+      end
+    end
+
     @mecab_cache_origin = {}
     @mecab_cache_dirty = @mecab_cache.empty?
   end
@@ -223,8 +235,21 @@ class JapaneseReadingDecomposer
         #  return
         #else
           #@decomposed[:restorable_reading]+=1
-          decomposition = (known_start << [decomposition[0][0], original]) + known_end
+          #decomposition = (known_start << [decomposition[0][0], original]) + known_end
         #end
+
+        guess = decomposition[0][0]
+
+        if is_kana?(guess) && !reading_equal?(guess, reading)
+          @decomposed[:dangerously_failed_reading]+=1
+          return
+        end
+        if sanity_check_failure?(guess, reading)
+          @decomposed[:reading_sanity_fail]+=1
+          return
+        end
+
+        decomposition = (known_start << [guess, original]) + known_end
       end
       #p "entry mismatch: jap: #{japanese}; read: #{reading_norm}; decomp: #{decomposition_reading.join}"
       #return
@@ -235,7 +260,6 @@ class JapaneseReadingDecomposer
     decomposition = transplant_original(reading, decomposition)
 
     subdec = decomposition.map do |x, y|
-
       if (x.size <= 1) || reading_equal?(x, y)
         [[x, y]]
       else
@@ -245,9 +269,31 @@ class JapaneseReadingDecomposer
           return
         end
         if sub.size > 1
-          puts "j: #{japanese} r: #{reading} a: #{sub}"
-          @decomposed[:ambiguous]+=1
-          return
+          bub = sub.dup
+          sub.delete_if do |sub_decomp|
+            sub_decomp.any? do |j, r|
+              sanity_check_failure?(j, r)
+            end
+          end
+          if sub.size > 1
+            sub.delete_if do |sub_decomp|
+              sub_decomp.guessed
+            end
+          end
+          #subsearch3(x, y)
+          case sub.size
+          when 0
+            puts "guessed: j: #{japanese} r: #{reading} a: #{bub}"
+            @decomposed[:ambiguous_guessed]+=1
+            return
+          when 1
+            puts "restored: j: #{japanese} r: #{reading} a: #{bub}"
+            @decomposed[:ambiguous_restored]+=1
+          else
+            puts "unguessed: j: #{japanese} r: #{reading} a: #{bub}"
+            @decomposed[:ambiguous_unguessed]+=1
+            return
+          end
         end
 
         sub[0]
@@ -290,9 +336,18 @@ class JapaneseReadingDecomposer
     sub_cases = result
     sub_cases.each do |j, r|
       put_to_decomposition_cache(j, r, [r])
+      put_to_decomposition_origin_cache(j, r, [[japanese, reading]])
     end
 
     result
+  end
+
+  def sanity_check_failure?(j, r)
+    c = r[0]
+    if c.match[/[んっょゅゃ]/]
+      return true unless reading_equal?(c, j[0])
+    end
+    @mecab_exclusions.include?([j, r])
   end
 
   def subsearch2(japanese, reading)
@@ -369,13 +424,12 @@ class JapaneseReadingDecomposer
   end
 
   def subsearch3(japanese, reading)
-    if is_kana?(japanese)
-      return reading_equal?(japanese, reading) ? [Decomposition.new([[japanese, reading]])] : nil
-    end
     if japanese.size <= 0
       #return reading.size>0 ? [[[japanese, reading]]] : nil
       return reading.size>0 ? nil : [Decomposition.new()]
     end
+    return [Decomposition.new([[japanese, reading]])] if reading_equal?(japanese, reading)
+    return nil if is_kana?(japanese) # japanese is fully kana but reading doesn't match. failure.
 
     last_take = japanese.size == 1
     allowed_take = last_take ? reading.size + 1 : reading.size
@@ -407,13 +461,12 @@ class JapaneseReadingDecomposer
   end
 
   def subsearch4(japanese, reading)
-    if is_kana?(japanese)
-      return reading_equal?(japanese, reading) ? [Decomposition.new([[japanese, reading]])] : nil
-    end
     if japanese.size <= 0
       #return reading.size>0 ? [[[japanese, reading]]] : nil
       return reading.size>0 ? nil : [Decomposition.new()]
     end
+    return [Decomposition.new([[japanese, reading]])] if reading_equal?(japanese, reading)
+    return nil if is_kana?(japanese) # japanese is fully kana but reading doesn't match. failure.
 
     last_take = japanese.size == 1
     allowed_take = last_take ? reading.size + 1 : reading.size
@@ -425,7 +478,13 @@ class JapaneseReadingDecomposer
       y.size > 0 && y.size < allowed_take && reading.end_with?(y)
     end
 
-    return if lg.empty?
+    if lg.empty?
+      return if japanese.size > 1
+      #p "Guess: j: #{japanese}; r: #{reading}"
+      result = Decomposition.new([[japanese, reading]])
+      result.guessed = true
+      return [result]
+    end
 
     tail = japanese[0..-2]
 
@@ -447,6 +506,11 @@ class JapaneseReadingDecomposer
   def put_to_decomposition_cache(japanese, reading, result)
     (@mecab_cache[japanese] ||= {})[reading] = result
     @mecab_cache_dirty = true
+  end
+
+  def put_to_decomposition_origin_cache(japanese, reading, result)
+    (@mecab_cache_origin[japanese] ||= {})[reading] ||= []
+    @mecab_cache_origin[japanese][reading] |= result
   end
 
   def process_with_mecab(text)
@@ -533,7 +597,7 @@ class JapaneseReadingDecomposer
 end
 
 def marshal_dict(dict)
-  ec = JapaneseReadingDecomposer.new("#{(File.dirname __FILE__)}/#{dict}.marshal", "#{(File.dirname __FILE__)}/#{dict}_mecab.marshal")
+  ec = JapaneseReadingDecomposer.new("#{(File.dirname __FILE__)}/#{dict}.marshal", "#{(File.dirname __FILE__)}/#{dict}_mecab.marshal", "#{(File.dirname __FILE__)}/exclusions.yaml")
 
   print "Loading #{dict.upcase}..."
   ec.load_dict
