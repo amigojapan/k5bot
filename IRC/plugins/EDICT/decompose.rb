@@ -45,8 +45,7 @@ class JapaneseReadingDecomposer
     @edict_file = edict_file
     @decomposition_file = decomposition_file
     @exclusion_file = exclusion_file
-
-    @decomposition_statistics = Hash.new() {|_,_| 0}
+    @interactive = false
 
     @mecab_readings = Hash.new() do |_, kanji|
       # Try to guess on-reading by combining given kanji with 膜 (random kanji)
@@ -100,16 +99,38 @@ class JapaneseReadingDecomposer
   end
 
   def decompose
-    @hash[:all].each_with_index do |entry, index|
-      combo = entry.japanese.eql?(entry.reading) || get_reading_decomposition(entry.japanese, entry.reading)
-      @decomposition_statistics[:total]+=1 if combo
 
-      if index % 1000 == 0
-        p "Entries: #{index}; Statistics: #@decomposition_statistics"
+    working_set = @hash[:all].each_with_index.to_a
+    old_stats = nil
+
+    loop.each do
+
+      @decomposition_statistics = Hash.new() {|_,_| 0}
+      working_set.delete_if do |entry, index|
+        combo = entry.japanese.eql?(entry.reading) || get_reading_decomposition(entry.japanese, entry.reading)
+        @decomposition_statistics[:total]+=1 if combo
+
+        if index % 1000 == 0
+          p "Entries: #{index}; Statistics: #@decomposition_statistics"
+        end
+
+        combo
       end
+
+      puts "Entries: #{@hash[:all].size}; Statistics: #@decomposition_statistics"
+
+      if @decomposition_statistics.eql?(old_stats)
+        if @interactive
+          break
+        end
+        @interactive = true
+      else
+        @interactive = false
+      end
+
+      old_stats = @decomposition_statistics
     end
 
-    puts "Entries: #{@hash[:all].size}; Statistics: #@decomposition_statistics"
   end
 
   def lookup_reading(japanese)
@@ -321,6 +342,9 @@ class JapaneseReadingDecomposer
   end
 
   def fill_disambiguation_candidates(alternatives)
+    # if in batch mode, skip disambiguation
+    return false unless @interactive
+
     begin
       choices = alternatives.flatten(1)
       puts "Choices #{choices.each_with_index.map {|ch, idx| "#{idx+1}: #{ch}" }.join('; ')}. -1 for skipping this ambiguity. Your choice?"
