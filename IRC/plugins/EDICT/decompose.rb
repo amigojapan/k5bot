@@ -209,63 +209,11 @@ class JapaneseReadingDecomposer
     end
 
     unless reading_equal?(reading, gather_reading(decomposition))
-      # Mecab-suggested decomposition doesn't match "#{reading}",
-      # which is assumed to be correct. Let's attempt to restore
-      # the reading, if there's only one wrong [japanese, reading] pair.
-
-      known_start = []
-      reading_guess = reading.dup
-
-      while decomposition.size > 1
-        x, y = decomposition.shift
-        oh = hiragana(reading_guess)
-        yh = hiragana(y)
-        unless oh.size > yh.size && oh.start_with?(yh)
-          decomposition.unshift([x, y])
-          break
-        end
-        known_start << [x, reading_guess.slice!(0, y.size)]
-      end
-
-      known_end = []
-      while decomposition.size > 1
-        x, y = decomposition.pop
-        oh = hiragana(reading_guess)
-        yh = hiragana(y)
-        unless oh.size > yh.size && oh.end_with?(yh)
-          decomposition.push([x, y])
-          break
-        end
-        known_end.unshift([x, reading_guess.slice!(-y.size..-1)])
-      end
-
-      if decomposition.size > 1
-        # Stripping matching readings didn't result in
-        # a single invalid pair. Give up.
-        @decomposition_statistics[:failed_reading]+=1
+      decomposition = try_restoring_decomposition(decomposition, japanese, reading)
+      unless decomposition
+        @decomposition_statistics[:decomposition_unrestorable]+=1
         return
       end
-
-      # We reduced mismatch to a single [japanese, wrong_reading] pair.
-      # Extract japanese.
-      japanese_guess = decomposition[0][0]
-
-      # There are tricky cases, when such guessing is dangerous and produces
-      # wrong pair. Let's try to avoid that.
-
-      # This is for cases, when mismatch results in assigning "new reading" to a kana.
-      # i.e. ["い", "がい"]. The amount of mess this may cause is beyond imagination.
-      if is_all_kana?(japanese_guess) && !reading_equal?(japanese_guess, reading)
-        @decomposition_statistics[:dangerously_failed_reading]+=1
-        return
-      end
-      if sanity_check_failure?(japanese_guess, reading)
-        @decomposition_statistics[:reading_sanity_fail]+=1
-        return
-      end
-
-      # Everything seems to be ok. Reconstruct decomposition with corrected pair.
-      decomposition = (known_start << [japanese_guess, reading_guess]) + known_end
     end
 
     # Mecab produces katakana reading. Replace that with what's in "#{reading}".
@@ -307,13 +255,13 @@ class JapaneseReadingDecomposer
             end
             case sub.size
             when 0
-              raise "Retry disambiguation!" if fill_disambiguation_candidates(sub_tmp_copy)
+              raise "Retry disambiguation!" if fill_disambiguation_candidates(sub_tmp_copy, japanese, reading)
               @decomposition_statistics[:ambiguous_guessed]+=1
               return
             when 1
               @decomposition_statistics[:ambiguous_restored]+=1
             else
-              raise "Retry disambiguation!" if fill_disambiguation_candidates(sub)
+              raise "Retry disambiguation!" if fill_disambiguation_candidates(sub, japanese, reading)
               @decomposition_statistics[:ambiguous_unguessed]+=1
               return
             end
@@ -341,13 +289,73 @@ class JapaneseReadingDecomposer
     compacted
   end
 
-  def fill_disambiguation_candidates(alternatives)
+  def try_restoring_decomposition(decomposition, japanese, reading)
+    # Mecab-suggested decomposition doesn't match "#{reading}",
+    # which is assumed to be correct. Let's attempt to restore
+    # the reading, if there's only one wrong [japanese, reading] pair.
+
+    known_start = []
+    reading_guess = reading.dup
+
+    while decomposition.size > 1
+      x, y = decomposition.shift
+      oh = hiragana(reading_guess)
+      yh = hiragana(y)
+      unless oh.size > yh.size && oh.start_with?(yh)
+        decomposition.unshift([x, y])
+        break
+      end
+      known_start << [x, reading_guess.slice!(0, y.size)]
+    end
+
+    known_end = []
+    while decomposition.size > 1
+      x, y = decomposition.pop
+      oh = hiragana(reading_guess)
+      yh = hiragana(y)
+      unless oh.size > yh.size && oh.end_with?(yh)
+        decomposition.push([x, y])
+        break
+      end
+      known_end.unshift([x, reading_guess.slice!(-y.size..-1)])
+    end
+
+    if decomposition.size > 1
+      # Stripping matching readings didn't result in
+      # a single invalid pair. Give up.
+      @decomposition_statistics[:failed_reading]+=1
+      return [[japanese, reading]]
+    end
+
+    # We reduced mismatch to a single [japanese, wrong_reading] pair.
+    # Extract japanese.
+    japanese_guess = decomposition[0][0]
+
+    # There are tricky cases, when such guessing is dangerous and produces
+    # wrong pair. Let's try to avoid that.
+
+    # This is for cases, when mismatch results in assigning "new reading" to a kana.
+    # i.e. ["い", "がい"]. The amount of mess this may cause is beyond imagination.
+    if is_all_kana?(japanese_guess) && !reading_equal?(japanese_guess, reading_guess)
+      @decomposition_statistics[:dangerously_failed_reading]+=1
+      return [[japanese, reading]]
+    end
+    if sanity_check_failure?(japanese_guess, reading_guess)
+      @decomposition_statistics[:reading_sanity_fail]+=1
+      return [[japanese, reading]]
+    end
+
+    # Everything seems to be ok. Reconstruct decomposition with corrected pair.
+    (known_start << [japanese_guess, reading_guess]) + known_end
+  end
+
+  def fill_disambiguation_candidates(alternatives, japanese, reading)
     # if in batch mode, skip disambiguation
     return false unless @interactive
 
     begin
       choices = alternatives.flatten(1)
-      puts "Choices #{choices.each_with_index.map {|ch, idx| "#{idx+1}: #{ch}" }.join('; ')}. Empty string to skip this ambiguity. Your choice?"
+      puts "#{japanese}(#{reading}); Choices #{choices.each_with_index.map {|ch, idx| "#{idx+1}: #{ch}" }.join('; ')}. Empty string to skip this ambiguity. Your choice?"
       idx = gets.chomp
 
       # skip disambiguation, b/c user doesn't want it.
