@@ -73,21 +73,29 @@ class JapaneseReadingDecomposer
     @decomposition_cache = File.open(@decomposition_file, 'r') do |io|
       Marshal.load(io)
     end rescue {}
+  end
 
-    excl = File.open(@exclusion_file, 'r') do |io|
-      Marshal.load(io)
+  def load_decomposition_exclusions
+    @decomposition_exclusions = File.open(@exclusion_file, 'r') do |io|
+      YAML.load(io)
     end rescue {}
-    @decomposition_exclusions = Set.new()
-    excl.each_pair do |japanese, reading_array|
-      reading_array.each do |reading|
-        @decomposition_exclusions.add([japanese, reading])
-      end
-    end
+  end
+
+  def put_decomposition_exclusion(japanese, reading, alternatives)
+    k = @decomposition_exclusions[japanese] ||= {}
+    k[reading] ||= []
+    k[reading] |= [alternatives]
   end
 
   def save_mecab_cache
     File.open(@decomposition_file, 'w') do |io|
       Marshal.dump(@decomposition_cache, io)
+    end
+  end
+
+  def save_decomposition_exclusions
+    File.open(@exclusion_file, 'w') do |io|
+      YAML.dump(@decomposition_exclusions, io)
     end
   end
 
@@ -251,7 +259,12 @@ class JapaneseReadingDecomposer
       elsif reading_equal?(x, y)
         # This is a kana/kana entry, or similar, so
         # there's char-by-char correspondence between readings.
-        x.each_char.zip(reading.each_char)
+        sub = x.each_char.zip(y.each_char)
+        sub.each do |j,r|
+          unless reading_equal?(j,r)
+            p "wrong! #{x}, #{y}"
+          end
+        end
       else
         sub = sub_decompose_reading(x, y)
         unless sub
@@ -259,29 +272,33 @@ class JapaneseReadingDecomposer
           return
         end
         if sub.size > 1
-          bub = sub.dup
-          sub.delete_if do |sub_decomp|
-            sub_decomp.any? do |j, r|
-              sanity_check_failure?(j, r)
-            end
-          end
-          if sub.size > 1
+          sub_tmp_copy = sub.dup
+          begin
             sub.delete_if do |sub_decomp|
-              sub_decomp.guessed
+              sub_decomp.any? do |j, r|
+                sanity_check_failure?(j, r)
+              end
             end
-          end
-          case sub.size
-          when 0
-            puts "guessed: j: #{japanese} r: #{reading} a: #{bub}"
-            @decomposition_statistics[:ambiguous_guessed]+=1
-            return
-          when 1
-            puts "restored: j: #{japanese} r: #{reading} a: #{bub}"
-            @decomposition_statistics[:ambiguous_restored]+=1
-          else
-            puts "unguessed: j: #{japanese} r: #{reading} a: #{bub}"
-            @decomposition_statistics[:ambiguous_unguessed]+=1
-            return
+            if sub.size > 1
+              sub.delete_if do |sub_decomp|
+                sub_decomp.guessed
+              end
+            end
+            case sub.size
+            when 0
+              raise "Retry disambiguation!" if fill_disambiguation_candidates(sub_tmp_copy)
+              @decomposition_statistics[:ambiguous_guessed]+=1
+              return
+            when 1
+              @decomposition_statistics[:ambiguous_restored]+=1
+            else
+              raise "Retry disambiguation!" if fill_disambiguation_candidates(sub)
+              @decomposition_statistics[:ambiguous_unguessed]+=1
+              return
+            end
+          rescue
+            # retry disambiguation, restore unfiltered choices
+            sub = sub_tmp_copy
           end
         end
 
@@ -303,6 +320,46 @@ class JapaneseReadingDecomposer
     compacted
   end
 
+  def fill_disambiguation_candidates(alternatives)
+    begin
+      choices = alternatives.flatten(1)
+      puts "Choices #{choices.each_with_index.map {|ch, idx| "#{idx+1}: #{ch}" }.join('; ')}. -1 for skipping this ambiguity. Your choice?"
+      idx = gets.chomp.to_i
+      raise "Bad choice" if idx == 0
+
+      # skip disambiguation, b/c user doesn't want it.
+      return false if idx == -1
+
+      choice = choices[idx-1]
+      puts "Chose: #{choice}"
+      raise "Bad choice" unless choice
+
+      japanese, reading = choice
+
+      put_decomposition_exclusion(japanese, reading, alternatives)
+      save_decomposition_exclusions
+    rescue Exception => _
+      retry
+    end
+
+    true # retry disambiguation, b/c we changed exclusion table.
+  end
+
+=begin
+  def fill_disambiguation_candidates(alternatives)
+    alternatives.each do |decomp|
+      decomp.each do |japanese, reading|
+        # prevent yaml dumper from using references for those
+        japanese = japanese.dup
+        reading = reading.dup
+        k = @disambiguation_candidates[japanese] ||= {}
+        k[reading] ||= []
+        k[reading] |= [alternatives]
+      end
+    end
+  end
+=end
+
   # Checks some basic things that should be true of any reading pair
   def sanity_check_failure?(j, r)
     c = r[0]
@@ -312,7 +369,8 @@ class JapaneseReadingDecomposer
       return true unless reading_equal?(c, j[0])
     end
     # Check user-defined rules.
-    @decomposition_exclusions.include?([j, r])
+    readings = @decomposition_exclusions[j]
+    readings && readings.include?(r)
   end
 
   def sub_decompose_reading(japanese, reading)
@@ -495,6 +553,10 @@ def marshal_dict(dict)
 
   print "Loading #{dict.upcase} decomposition cache..."
   ec.load_mecab_cache
+  puts "done."
+
+  print "Loading decomposition exclusions..."
+  ec.load_decomposition_exclusions
   puts "done."
 
   print "Decomposing #{dict.upcase}..."
