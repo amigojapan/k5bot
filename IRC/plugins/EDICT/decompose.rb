@@ -347,12 +347,14 @@ class JapaneseReadingDecomposer
 
     begin
       choices = alternatives.flatten(1)
-      puts "Choices #{choices.each_with_index.map {|ch, idx| "#{idx+1}: #{ch}" }.join('; ')}. -1 for skipping this ambiguity. Your choice?"
-      idx = gets.chomp.to_i
-      raise "Bad choice" if idx == 0
+      puts "Choices #{choices.each_with_index.map {|ch, idx| "#{idx+1}: #{ch}" }.join('; ')}. Empty string to skip this ambiguity. Your choice?"
+      idx = gets.chomp
 
       # skip disambiguation, b/c user doesn't want it.
-      return false if idx == -1
+      return false if idx.empty?
+
+      idx = idx.to_i
+      raise "Bad choice" if idx == 0
 
       choice = choices[idx-1]
       puts "Chose: #{choice}"
