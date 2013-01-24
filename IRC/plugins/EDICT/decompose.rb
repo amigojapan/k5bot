@@ -106,18 +106,21 @@ class JapaneseReadingDecomposer
     loop.each do
 
       @decomposition_statistics = Hash.new() {|_,_| 0}
+      cnt = 0
       working_set.delete_if do |entry, index|
         combo = entry.japanese.eql?(entry.reading) || get_reading_decomposition(entry.japanese, entry.reading)
         @decomposition_statistics[:total]+=1 if combo
 
-        if index % 1000 == 0
-          p "Entries: #{index}; Statistics: #@decomposition_statistics"
+        if cnt % 1000 == 0
+          p "Entry: #{index}; Statistics: #@decomposition_statistics"
         end
+
+        cnt+=1
 
         combo
       end
 
-      puts "Entries: #{@hash[:all].size}; Statistics: #@decomposition_statistics"
+      puts "Entries completed: #{@hash[:all].size-working_set.size}; Entries processed: #{cnt}; Statistics: #@decomposition_statistics"
 
       if @decomposition_statistics.eql?(old_stats)
         if @interactive
@@ -268,6 +271,7 @@ class JapaneseReadingDecomposer
           rescue
             # retry disambiguation, restore unfiltered choices
             sub = sub_tmp_copy
+            retry
           end
         end
 
@@ -413,7 +417,9 @@ class JapaneseReadingDecomposer
       # otherwise it's simultaneous exhaustion, return new decomposition root.
       return reading.size>0 ? nil : [Decomposition.new()]
     end
-    return [Decomposition.new([[japanese, reading]])] if reading_equal?(japanese, reading)
+    if reading_equal?(japanese, reading)
+      return [Decomposition.new(japanese.each_char.zip(reading.each_char))]
+    end
     return nil if is_all_kana?(japanese) # japanese is fully kana, but reading doesn't match. failure.
 
     last_take = japanese.size == 1
@@ -426,8 +432,6 @@ class JapaneseReadingDecomposer
       y.size > 0 && y.size < allowed_take && reading.start_with?(y)
     end
 
-    return sub_decompose_reading_tail(japanese, reading) if lg.empty?
-
     tail = japanese[1..-1]
 
     result = lg.map do |guess|
@@ -438,8 +442,11 @@ class JapaneseReadingDecomposer
         sub_decomp.unshift(decomp)
       end
     end
-
     result.flatten!(1)
+
+    tail_decompose = sub_decompose_reading_tail(japanese, reading)
+    result |= tail_decompose if tail_decompose
+
     result = result.select {|x| !x.nil?}
 
     result unless result.empty?
@@ -451,7 +458,9 @@ class JapaneseReadingDecomposer
       # otherwise it's simultaneous exhaustion, return new decomposition root.
       return reading.size>0 ? nil : [Decomposition.new()]
     end
-    return [Decomposition.new([[japanese, reading]])] if reading_equal?(japanese, reading)
+    if reading_equal?(japanese, reading)
+      return [Decomposition.new(japanese.each_char.zip(reading.each_char))]
+    end
     return nil if is_all_kana?(japanese) # japanese is fully, kana but reading doesn't match. failure.
 
     last_take = japanese.size == 1
