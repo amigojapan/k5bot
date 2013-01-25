@@ -444,10 +444,12 @@ class JapaneseReadingDecomposer
     end
     result.flatten!(1)
 
-    tail_decompose = sub_decompose_reading_tail(japanese, reading)
-    result |= tail_decompose if tail_decompose
-
     result = result.select {|x| !x.nil?}
+
+    if result.empty?
+      tail_decompose = sub_decompose_reading_tail(japanese, reading)
+      result = tail_decompose if tail_decompose
+    end
 
     result unless result.empty?
   end
