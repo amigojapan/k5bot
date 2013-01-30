@@ -128,6 +128,28 @@ if it's the only given search term",
     end
   end
 
+  def get_japanese_readings(kanji)
+    entry = @kanji[kanji]
+    return unless entry
+
+    result = []
+    r = entry.readings
+
+    kun = r[:ja_kun]
+    if kun
+      result |= kun.map do |term|
+        KANJIDIC2Entry.get_japanese_stem(term)
+      end
+    end
+
+    [r[:ja_on], r[:nanori]].each do |terms|
+      next unless terms
+      result |= terms
+    end
+
+    result unless result.empty?
+  end
+
   private
 
   def generate_menu(lookup, name)

@@ -31,8 +31,10 @@ end
 plugin_manager = TmpPluginManager.new()
 
 raise "Can't load Language plugin" unless plugin_manager.load_plugin(:Language)
+raise "Can't load KANJIDIC2 plugin" unless plugin_manager.load_plugin(:KANJIDIC2)
 
 $language = plugin_manager.plugins[:Language]
+$kanjidic = plugin_manager.plugins[:KANJIDIC2]
 
 class Decomposition < Array
   attr_accessor :guessed
@@ -48,6 +50,11 @@ class JapaneseReadingDecomposer
     @interactive = false
 
     @mecab_readings = Hash.new() do |_, kanji|
+      r1 = $kanjidic.get_japanese_readings(kanji)
+      if r1
+        r1.map!{|y| hiragana(y)}
+      end
+
       # Try to guess on-reading by combining given kanji with 膜 (random kanji)
       r2 = process_with_mecab("膜#{kanji}")
       if r2
@@ -57,6 +64,11 @@ class JapaneseReadingDecomposer
         # but we're too lazy to check that.
         # Strip off japanese, and convert reading to hiragana.
         r2.map!{|_,y| hiragana(y)}
+      end
+
+      if r1
+        r1 | (r2 || [])
+      else
         r2
       end
     end
@@ -98,6 +110,13 @@ class JapaneseReadingDecomposer
     end
   end
 
+  def sort_decomp_stats(stats)
+    stats = stats.each_pair.to_a
+    #stats.sort_by! {|_, val| -val }
+    stats.sort_by! {|k, v| [-v, k.instance_of?(String) ? 1 : 0]}
+    Hash[stats]
+  end
+
   def decompose
 
     working_set = @hash[:all].each_with_index.to_a
@@ -112,7 +131,7 @@ class JapaneseReadingDecomposer
         @decomposition_statistics[:total]+=1 if combo
 
         if cnt % 1000 == 0
-          p "Entry: #{index}; Statistics: #@decomposition_statistics"
+          puts "Entry: #{index}; Statistics: #{sort_decomp_stats(@decomposition_statistics)}"
         end
 
         cnt+=1
@@ -120,7 +139,7 @@ class JapaneseReadingDecomposer
         combo
       end
 
-      puts "Entries completed: #{@hash[:all].size-working_set.size}; Entries processed: #{cnt}; Statistics: #@decomposition_statistics"
+      puts "Entries completed: #{@hash[:all].size-working_set.size}; Entries processed: #{cnt}; Statistics: #{sort_decomp_stats(@decomposition_statistics)}"
 
       if @decomposition_statistics.eql?(old_stats)
         if @interactive
@@ -247,9 +266,7 @@ class JapaneseReadingDecomposer
           sub_tmp_copy = sub.dup
           begin
             sub.delete_if do |sub_decomp|
-              sub_decomp.any? do |j, r|
-                sanity_check_failure?(j, r)
-              end
+              decomp_sanity_check_failure?(sub_decomp)
             end
             if sub.size > 1
               sub.delete_if do |sub_decomp|
@@ -258,13 +275,13 @@ class JapaneseReadingDecomposer
             end
             case sub.size
             when 0
-              raise "Retry disambiguation!" if fill_disambiguation_candidates(sub_tmp_copy, japanese, reading)
+              raise "Retry disambiguation!" if fill_disambiguation_candidates(sub_tmp_copy, japanese, reading, 'AG;')
               @decomposition_statistics[:ambiguous_guessed]+=1
               return
             when 1
               @decomposition_statistics[:ambiguous_restored]+=1
             else
-              raise "Retry disambiguation!" if fill_disambiguation_candidates(sub, japanese, reading)
+              raise "Retry disambiguation!" if fill_disambiguation_candidates(sub, japanese, reading, 'AU;')
               @decomposition_statistics[:ambiguous_unguessed]+=1
               return
             end
@@ -344,26 +361,50 @@ class JapaneseReadingDecomposer
       @decomposition_statistics[:dangerously_failed_reading]+=1
       return [[japanese, reading]]
     end
-    if sanity_check_failure?(japanese_guess, reading_guess)
+
+    decomp = (known_start << [japanese_guess, reading_guess]) + known_end
+
+    #if sanity_check_failure?(japanese_guess, reading_guess)
+    if decomp_sanity_check_failure?(decomp)
       @decomposition_statistics[:reading_sanity_fail]+=1
       return [[japanese, reading]]
     end
 
     # Everything seems to be ok. Reconstruct decomposition with corrected pair.
-    (known_start << [japanese_guess, reading_guess]) + known_end
+    decomp
   end
 
-  def fill_disambiguation_candidates(alternatives, japanese, reading)
+  def remember_problem(alternatives)
+    #alternatives[0].each do |j, r|
+    #  @decomposition_statistics[j] +=1
+    #end
+    merged = merge_ambiguities(alternatives)
+    merged.each do |j, _|
+      next if j.size <= 1
+      j.each_char {|c| @decomposition_statistics[c] +=1}
+    end
+  end
+
+  def fill_disambiguation_candidates(alternatives, japanese, reading, misc)
+    remember_problem(alternatives)
     # if in batch mode, skip disambiguation
     return false unless @interactive
 
     begin
       choices = alternatives.flatten(1)
-      puts "#{japanese}(#{reading}); Choices #{choices.each_with_index.map {|ch, idx| "#{idx+1}: #{ch}" }.join('; ')}. Empty string to skip this ambiguity. Your choice?"
+      puts "#{misc}#{japanese}(#{reading}); Choices #{choices.each_with_index.map {|ch, idx| "#{idx+1}: #{ch}" }.join('; ')}. Empty string to skip this ambiguity. Your choice?"
       idx = gets.chomp
 
       # skip disambiguation, b/c user doesn't want it.
       return false if idx.empty?
+
+      if idx.start_with?('?')
+        idx = idx[1..-1]
+        @decomposition_cache[idx].each_pair do |_, decomp|
+          puts decomp.to_s
+        end
+        raise "repeat"
+      end
 
       idx = idx.to_i
       raise "Bad choice" if idx == 0
@@ -397,6 +438,20 @@ class JapaneseReadingDecomposer
     end
   end
 =end
+
+  def decomp_sanity_check_failure?(decomp)
+    prev_size = nil
+
+    decomp.each do |j, r|
+      if '々'.eql?(j)
+        return true if r.size != prev_size
+      end
+      return true if sanity_check_failure?(j,r)
+      prev_size = r.size
+    end
+
+    nil
+  end
 
   # Checks some basic things that should be true of any reading pair
   def sanity_check_failure?(j, r)
@@ -551,6 +606,39 @@ class JapaneseReadingDecomposer
         false
       end
     end
+  end
+
+  def merge_ambiguities(alternatives)
+    japanese = alternatives[0].map {|j, _| j}.join
+    reading = gather_reading(alternatives[0])
+
+    indices = Hash.new() {|_,_| 0}
+
+    alternatives.each do |decomp|
+      j_idx = 0
+      r_idx = 0
+      decomp.each do |j, r|
+        indices[[j_idx += j.size, r_idx += r.size]] += 1
+      end
+    end
+
+    indices.delete_if do |_, count|
+      count < alternatives.size
+    end
+
+    indices = indices.keys.sort
+
+    result = []
+
+    prev_j_idx = 0
+    prev_k_idx = 0
+    indices.each do |j_idx, k_idx|
+      result << [japanese[prev_j_idx..j_idx-1], reading[prev_k_idx..k_idx-1]]
+      prev_j_idx = j_idx
+      prev_k_idx = k_idx
+    end
+
+    result
   end
 
   def hiragana(text)
