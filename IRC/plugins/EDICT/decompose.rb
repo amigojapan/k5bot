@@ -11,35 +11,44 @@
 
 $VERBOSE = true
 
-require 'iconv'
 require 'yaml'
+require 'MeCab' # mecab ruby binding
+
+require_relative '../../IRCPluginManager'
+
 require_relative 'EDICTEntry'
 
-begin
-require 'MeCab' # mecab ruby binding
-  $mecab = MeCab::Tagger.new("-Ohasen2")
-rescue Exception
-  $mecab = nil
+$mecab = MeCab::Tagger.new("-Ohasen2")
+
+class TmpPluginManager < IRCPluginManager
+  def find_config_entry(name)
+    name = name.to_sym
+    [name, {}]
+  end
 end
 
-class EDICTConverter
+plugin_manager = TmpPluginManager.new()
+
+raise "Can't load Language plugin" unless plugin_manager.load_plugin(:Language)
+
+$language = plugin_manager.plugins[:Language]
+
+class JapaneseReadingDecomposer
   attr_reader :hash
 
   def initialize(edict_file, decomposition_file)
     @edict_file = edict_file
     @decomposition_file = decomposition_file
-    @hash = {}
-    @hash[:japanese] = {}
-    @hash[:readings] = {}
-    @hash[:keywords] = {}
-    @all_entries = []
-    @hash[:all] = @all_entries
-
-    # Duplicated two lines from ../Language/Language.rb
-    @kata2hira = YAML.load_file("../Language/kata2hira.yaml") rescue nil
-    @katakana = @kata2hira.keys.sort_by{|x| -x.length}
 
     @decomposed = Hash.new() {|h,k| 0}
+
+    @mecab_readings = {}
+  end
+
+  def load_dict
+    @hash = File.open(@edict_file, 'r') do |io|
+      Marshal.load(io)
+    end
   end
 
   def load_mecab_cache
@@ -56,48 +65,17 @@ class EDICTConverter
     end
   end
 
-  def read
-    load_mecab_cache
+  def decompose
+    @hash[:all].each_with_index do |entry, index|
+      combo = entry.japanese.eql?(entry.reading) || get_reading_decomposition(entry.japanese, entry.reading)
+      @decomposed[:total]+=1 if combo
 
-    File.open(@edict_file, 'r') do |io|
-      io.each_line do |l|
-        entry = EDICTEntry.new(Iconv.conv('UTF-8', 'EUC-JP', l).strip)
+      p "entries: #{index}; Decomposed: #@decomposed"
 
-        combo = entry.japanese.eql?(entry.reading) || get_reading_decomposition(entry.japanese, entry.reading)
-        @decomposed[:total]+=1 if combo
-
-        #p "entries: #{@all_entries.size} decomposed: #@decomposed."
-
-        @all_entries << entry
-        (@hash[:japanese][entry.japanese] ||= []) << entry
-        (@hash[:readings][hiragana(entry.reading)] ||= []) << entry
-        entry.keywords.each do |k|
-          (@hash[:keywords][k] ||= []) << entry
-        end
-
-      end
+      #process_with_mecab(entry.japanese)
     end
 
-    p "entries: #{@all_entries.size} decomposed: #@decomposed. saving result cache..."
-
-    save_mecab_cache
-  end
-
-  def sort
-    count = 0
-    @all_entries.sort_by!{|e| [ (e.common? ? -1 : 1), (!e.xrated? ? -1 : 1), (!e.vulgar? ? -1 : 1), e.reading, e.keywords.size, e.japanese.length]}
-    @all_entries.each do |e|
-      e.sortKey = count
-      count += 1
-    end
-  end
-
-  # Duplicated method from ../Language/Language.rb
-  def hiragana(katakana)
-    return katakana unless katakana =~ /[\u30A0-\u30FF\uFF61-\uFF9D\u31F0-\u31FF]/
-    hiragana = katakana.dup
-    @katakana.each{|k| hiragana.gsub!(k, @kata2hira[k])}
-    hiragana
+    puts "Entries: #{@hash[:all].size}; Decomposed: #@decomposed"
   end
 
   def nl(a, b)
@@ -109,7 +87,7 @@ class EDICTConverter
     #p "r: #{r}"
     r = r ? r.keys.to_a : []
     #p "jap: #{japanese}"
-    r2 = process_with_mecab("膜#{japanese}")
+    r2 = @mecab_readings[japanese] ||= process_with_mecab("膜#{japanese}")
     #p "r2: #{r2}"
     if r2
       r2.shift
@@ -143,16 +121,52 @@ class EDICTConverter
     decomposition.map { |_, y| hiragana(y) }
   end
 
+  def expand(japanese, decomposition)
+    current = nil
+    result = []
+    decomposition.each_with_index do |reading, i|
+      if reading
+        current = ['', reading]
+        result << current
+      end
+      current[0] << japanese[i]
+    end
+
+    result
+  end
+
+  def compact(decomposition)
+    idx = 0
+    result = []
+    decomposition.each do |japanese, reading|
+      result[idx] = reading
+      idx += japanese.size
+    end
+
+    result
+  end
+
   def get_reading_decomposition(japanese, reading)
-    if japanese.size <= 1
-      #put_to_decomposition_cache(japanese, reading, [reading])
-      return [reading]
+    p "j: #{japanese} r: #{reading}"
+    case japanese.size
+    when 0
+      raise "Fuckup"
+    when 1
+      result = [reading]
+      put_to_decomposition_cache(japanese, reading, result)
+      return result
+    else
+      if reading_equal?(japanese, reading)
+        result = reading.each_char.to_a
+        put_to_decomposition_cache(japanese, reading, result)
+        return result
+      end
     end
     decomposition = @mecab_cache[japanese]
     decomposition = decomposition[reading] if decomposition
     if decomposition
-      decomposition = decomposition
-      #decomposition = japanese.each_char.zip(decomposition)
+      #decomposition = expand(japanese, decomposition)
+      return expand(japanese, decomposition)
     else
       decomposition = process_with_mecab(japanese)
     end
@@ -207,16 +221,23 @@ class EDICTConverter
       #return
     end
 
+    #return if decomposition.size <=1
+
     decomposition = transplant_original(reading, decomposition)
 
     subdec = decomposition.map do |x, y|
-      if (x.size <= 1) || (x.eql?(y))
+
+      if (x.size <= 1) || reading_equal?(x, y)
         [[x, y]]
       else
         sub = subsearch(x, y)
         return unless sub
         sub
       end
+
+#      sub = get_reading_decomposition(x, y)
+#      return unless sub
+#      expand(x, sub)
     end
     subdec.flatten!(1)
     result = subdec
@@ -244,26 +265,35 @@ class EDICTConverter
       result = decomposition
     end
 =end
-
-    put_to_decomposition_cache(japanese, reading, result)
+    compacted = compact(result)
+    put_to_decomposition_cache(japanese, reading, compacted)
 
     #sub_cases = japanese.each_char.zip(result)
     sub_cases = result
     sub_cases.each do |j, r|
-      put_to_decomposition_cache(j, r, [[j, r]])
+      put_to_decomposition_cache(j, r, [r])
     end
 
     result
   end
 
+  def subsearch2(japanese, reading)
+    decomposition = @mecab_cache[japanese]
+    decomposition = decomposition[reading] if decomposition
+    return expand(japanese, decomposition) if decomposition
+
+    @decomposed[:unguessed]+=1
+    nil
+  end
+
   def subsearch(japanese, reading)
     #if decomposition.size < japanese.size
-      if japanese.size > 2
-        @decomposed[:unguessed_else]+=1
-        @decomposed[japanese.size]+=1
-        p "j: #{japanese}; r: #{reading}"
-        return
-      end
+      #if japanese.size > 2
+      #  @decomposed[:unguessed_else]+=1
+      #  @decomposed[japanese.size]+=1
+      #  p "j: #{japanese}; r: #{reading}"
+      #  return
+      #end
       r = japanese.each_char.map do |x|
         #p "x: #{x}"
         lg = lookup_reading(x)
@@ -341,14 +371,42 @@ class EDICTConverter
       part = fields.shift
       reading = fields.shift
 
+      unless is_japanese?(part)
+        print "#{part}\n"
+      end
       unless is_katakana?(reading)
+        #p reading
         return
       end
 
       result << [part, reading]
     end
 
-    result
+    remerge_non_japanese(result)
+  end
+
+  def remerge_non_japanese(decomposition)
+    prev = nil
+    decomposition.delete_if do |x|
+      japanese, reading = x
+      if japanese =~ /[0-9０１２３４５６７８９]/
+        if prev
+          prev[0] << japanese
+          prev[1] << reading
+          true
+        else
+          prev = x
+          false
+        end
+      else
+        prev = nil
+        false
+      end
+    end
+  end
+
+  def hiragana(text)
+    $language.hiragana(text)
   end
 
   def is_katakana?(text)
@@ -360,7 +418,7 @@ class EDICTConverter
     !!(text =~ /^[\u30A0-\u30FF\uFF61-\uFF9D\u31F0-\u31FF]+$/)
   end
 
-  def is_kanji?(text)
+  def is_japanese?(text)
     # 3040-309F hiragana
     # 30A0-30FF katakana
     # 4E00-9FC2 kanji
@@ -374,20 +432,22 @@ class EDICTConverter
 end
 
 def marshal_dict(dict)
-  ec = EDICTConverter.new("#{(File.dirname __FILE__)}/#{dict}", "#{(File.dirname __FILE__)}/#{dict}_mecab.marshal")
+  ec = JapaneseReadingDecomposer.new("#{(File.dirname __FILE__)}/#{dict}.marshal", "#{(File.dirname __FILE__)}/#{dict}_mecab.marshal")
 
-  print "Indexing #{dict.upcase}..."
-  ec.read
+  print "Loading #{dict.upcase}..."
+  ec.load_dict
   puts "done."
 
-  print "Sorting #{dict.upcase}..."
-  ec.sort
+  print "Loading #{dict.upcase} decomposition cache..."
+  ec.load_mecab_cache
   puts "done."
 
-  print "Marshalling #{dict.upcase}..."
-  File.open("#{(File.dirname __FILE__)}/#{dict}.marshal", 'w') do |io|
-    Marshal.dump(ec.hash, io)
-  end
+  print "Decomposing #{dict.upcase}..."
+  ec.decompose
+  puts "done."
+
+  print "Saving #{dict.upcase} decomposition cache..."
+  ec.save_mecab_cache
   puts "done."
 end
 
