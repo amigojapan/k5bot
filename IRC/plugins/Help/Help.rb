@@ -28,6 +28,8 @@ class Help < IRCPlugin
     when :plugins
       p = @pm.plugins.keys.sort*', '
       msg.reply "Loaded plugins: #{p}" if p && !p.empty?
+    when :generate_help_markdown
+      generate_markdown($stdout)
     end
   end
 
@@ -151,5 +153,48 @@ class Help < IRCPlugin
 
   def format_suggestion_list(suggestions, command_prefix)
     suggestions.map { |r| "#{command_prefix}help #{r}" }.join(' | ')
+  end
+
+  def generate_markdown(target)
+    plugin_list = @pm.plugins.each_pair
+
+    found = plugin_list.map do |name, plugin|
+      ["#{name} plugin", (plugin.commands || {}).merge({nil => plugin.description})]
+    end.select do |_, desc|
+      !desc.nil?
+    end
+
+    found = Hash[found]
+
+    do_gen_markdown(target, found, 1)
+  end
+
+  MD_CHARS_MATCHER_ALL = /[\\`\*_{}\[\]\(\)#\+\-\.!]/
+
+  def escape_markdown(text)
+    text.to_s.gsub(MD_CHARS_MATCHER_ALL) do |m|
+      "\\#{m}"
+    end
+  end
+
+  def do_gen_markdown(target, category, level)
+    if category.instance_of?(Hash)
+      if category[nil]
+        target << escape_markdown(category[nil])
+        target << "\n"
+      end
+      category.each_pair do |key, subcategory|
+        next if key.nil?
+
+        target << '#' * level
+        target << escape_markdown(key)
+        target << "\n"
+
+        do_gen_markdown(target, subcategory, level+1)
+      end
+    else
+      target << escape_markdown(category)
+      target << "\n"
+    end
   end
 end
