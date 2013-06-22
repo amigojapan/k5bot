@@ -34,15 +34,23 @@ class IRCMessage
 
   def parse(raw)
     return unless raw
-    raw.strip!
-    msg_parts = raw.to_s.split(/[ 　]/)
+    raw = raw.to_s
+    raw.lstrip!
+
+    # Split out the trailing param.
+    # It's the only thing that can start with colon after space.
+    msg_parts, trailing_param = raw.split(/ :/, 2)
+
+    # All before trailing param is split by 0x20 space,
+    # And mustn't contain it at all.
+    msg_parts = msg_parts.split(/ +/)
+
     @prefix = msg_parts.shift[1..-1] if msg_parts.first.start_with? ':'
     @command = msg_parts.shift.downcase.to_sym
-    @params = []
-    @params << msg_parts.shift while msg_parts.first and !msg_parts.first.start_with? ':'
-    msg_parts.first.slice!(0) if msg_parts.first
-    @params.delete_if{|param| param.empty?}
-    @params << msg_parts.join(' ') if !msg_parts.empty?
+    @params = msg_parts
+
+    # Add the trailing parameter
+    @params << trailing_param if trailing_param
 
     if @command == :privmsg || @command == :notice
       @is_private = @params.first.eql?(@bot.user.nick)
