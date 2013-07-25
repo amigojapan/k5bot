@@ -1,0 +1,639 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="help_export.xsl"?>
+<help>
+  <plugins>
+    <plugin name="Algorithms">
+      <description>
+        <summary>The Algorithms plugin contains various geeky functions and algorithms.</summary>
+      </description>
+      <commands>
+        <command name="damerau">
+          <summary>calculates Damerau-Levenshtein distance between two given words</summary>
+        </command>
+        <command name="levenshtein">
+          <summary>calculates Levenshtein distance between two given words</summary>
+        </command>
+      </commands>
+    </plugin>
+    <plugin name="CEDICT">
+      <description>
+        <summary>A CEDICT plugin.</summary>
+      </description>
+      <commands>
+        <command name="zh">
+          <summary>looks up a Mandarin word in CEDICT</summary>
+        </command>
+        <command name="zhen">
+          <summary>looks up an English word in CEDICT</summary>
+        </command>
+      </commands>
+      <dependencies>
+        <dep>Language</dep>
+        <dep>Menu</dep>
+      </dependencies>
+    </plugin>
+    <plugin name="ChannelPool">
+      <description>
+        <summary>Provides channel resolution service and maintains various related information.</summary>
+      </description>
+    </plugin>
+    <plugin name="Clock">
+      <description>
+        <summary>The Clock plugin tells the time.</summary>
+      </description>
+      <commands>
+        <command name="jtime">
+          <summary>tells the current time in Japan only</summary>
+        </command>
+        <command name="time">
+          <summary>tells the current time. Optionally accepts space-separated list of timezone identifiers (e.g. Asia/Tokyo), or simply their parts after / and without spaces (e.g. 'NewYork'), timezone abbreviations (e.g. UTC, JST), and ISO-3166 country names (e.g. US, JP)</summary>
+        </command>
+        <command name="utime">
+          <summary>tells the current time in UTC only</summary>
+        </command>
+      </commands>
+    </plugin>
+    <plugin name="DCC">
+      <description>
+        <summary>Direct Client-to-Client protocol plugin.</summary>
+      </description>
+      <commands>
+        <command name="chat">
+          <summary>sends a DCC CHAT request back to the caller</summary>
+        </command>
+        <command name="schat">
+          <summary>sends a DCC SCHAT (SSL-encrypted chat) request back to the caller</summary>
+        </command>
+      </commands>
+      <dependencies>
+        <dep>IRCBot</dep>
+        <dep>Router</dep>
+        <dep>StorageYAML</dep>
+      </dependencies>
+    </plugin>
+    <plugin name="Daijirin">
+      <description>
+        <summary>A Daijirin plugin.</summary>
+      </description>
+      <commands>
+        <command name="de">
+          <summary>looks up an English word in Daijirin</summary>
+        </command>
+        <command name="dj">
+          <summary>looks up a Japanese word in Daijirin</summary>
+        </command>
+        <command name="djr">
+          <summary>searches Japanese words matching given regexp in Daijirin. In addition to standard regexp operators (e.g. ^,$,*), special operators &amp; and &amp;&amp; are supported. Operator &amp; is a way to match several regexps (e.g. 'A &amp; B &amp; C' will only match words, that contain all of A, B and C letters, in any order). Operator &amp;&amp; is a way to specify separate conditions on kanji and reading (e.g. '物 &amp;&amp; もつ'). Classes: \k (kana), \K (non-kana)</summary>
+        </command>
+        <command name="du">
+          <summary>Generates an url for lookup in dic.yahoo.jp</summary>
+        </command>
+      </commands>
+      <dependencies>
+        <dep>Language</dep>
+        <dep>Menu</dep>
+      </dependencies>
+    </plugin>
+    <plugin name="Dice">
+      <description>
+        <summary>Dice plugin.</summary>
+      </description>
+      <commands>
+        <command name="roll">
+          <summary>rolls the dice</summary>
+        </command>
+      </commands>
+    </plugin>
+    <plugin name="EDICT">
+      <description>
+        <summary>An EDICT plugin.</summary>
+      </description>
+      <commands>
+        <command name="e">
+          <summary>looks up an English word in EDICT</summary>
+        </command>
+        <command name="j">
+          <summary>looks up a Japanese word in EDICT</summary>
+        </command>
+        <command name="jmark">
+          <summary>shows the description of an EDICT/ENAMDICT marker</summary>
+        </command>
+        <command name="jn">
+          <summary>looks up a Japanese word in ENAMDICT</summary>
+        </command>
+        <command name="jr">
+          <summary>searches Japanese words matching given regexp in EDICT. In addition to standard regexp operators (e.g. ^,$,*), special operators &amp; and &amp;&amp; are supported. Operator &amp; is a way to match several regexps (e.g. 'A &amp; B &amp; C' will only match words, that contain all of A, B and C letters, in any order). Operator &amp;&amp; is a way to specify separate conditions on kanji and reading (e.g. '物 &amp;&amp; もつ').  Classes: \k (kana), \K (non-kana)</summary>
+        </command>
+      </commands>
+      <dependencies>
+        <dep>Language</dep>
+        <dep>Menu</dep>
+      </dependencies>
+    </plugin>
+    <plugin name="EPWING">
+      <description>
+        <summary>Plugin for working with dictionaries in EPWING format.</summary>
+        <section name="search">
+          <summary>Searching is straightforward, but it's worth noting that since used EPWING library searches both English and Japanese words via the same call, no convenient input word mangling is done. In particular, text in ro-maji isn't converted to kana, you must do it yourself. You can also use .epwing command to search in all available dictionaries simultaneously.</summary>
+        </section>
+        <section name="postfix">
+          <summary>Search commands can (where supported by underlying dictionary) be postfixed with one of the following: ! for exact search, $ for ends-with search, @ for keyword search. No postfix is 'contains' search. ~ is the same, but
+doesn't substitute gaiji. The exact meaning of search modes seems to vary with dictionary, so try and find what suits you best.</summary>
+        </section>
+        <section name="gaiji">
+          <summary>Because EPWING dictionaries internally use JIS encodings, they can't represent lots of characters. As a workaround they use actual pictures instead, which they call 'GAIJI'. Whenever you see text like &lt;?A2C4W?&gt;, that's them. You can look up ASCII rendering of them using .gaiji? command. Using .gaiji command to supply unicode equivalents for gaiji is strongly encouraged.</summary>
+        </section>
+      </description>
+      <commands>
+        <command name="daijirin">
+          <summary>looks up given word in 三省堂　スーパー大辞林. See '.help EPWING' for more info.</summary>
+        </command>
+        <command name="daijisen">
+          <summary>looks up given word in 大辞泉. See '.help EPWING' for more info.</summary>
+        </command>
+        <command name="daijiten5">
+          <summary>looks up given word in 研究社　新和英大辞典　第５版. See '.help EPWING' for more info.</summary>
+        </command>
+        <command name="daijiten6">
+          <summary>looks up given word in 研究社　新英和大辞典　第６版. See '.help EPWING' for more info.</summary>
+        </command>
+        <command name="eijiro">
+          <summary>looks up given word in 英辞郎１０３. See '.help EPWING' for more info.</summary>
+        </command>
+        <command name="epwing">
+          <summary>looks up given word in all opened EPWING dictionaries. See '.help EPWING' for more info.</summary>
+        </command>
+        <command name="gaiji">
+          <summary>supplies given replacement symbol(s) for specified gaiji in specified dictionary. See '.help EPWING gaiji' for more info. Example: .gaiji daijirin WD500 (1) &lt;-- to add (1) as replacement for &lt;?WD500?&gt; in Daijirin. Example: .gaiji daijirin WD500 &lt;-- to remove existing mapping for WD500 in Daijirin.</summary>
+        </command>
+        <command name="gaiji?">
+          <summary>renders in ASCII symbol for specified gaiji in specified dictionary. Use .gaiji?? and .gaiji??? for different formats. See '.help EPWING gaiji' for more info. Example: .gaiji? daijirin WD500</summary>
+        </command>
+        <command name="genius">
+          <summary>looks up given word in ジーニアス英和大辞典. See '.help EPWING' for more info.</summary>
+        </command>
+        <command name="kojien">
+          <summary>looks up given word in 広辞苑第六版. See '.help EPWING' for more info.</summary>
+        </command>
+        <command name="kotowaza">
+          <summary>looks up given word in 故事ことわざの辞典. See '.help EPWING' for more info.</summary>
+          <section name="usage">
+            <summary>This dictionary seems to accept only kana for search.</summary>
+          </section>
+        </command>
+        <command name="nihonshi">
+          <summary>looks up given word in 岩波日本史辞典ＣＤ‐ＲＯＭ版. See '.help EPWING' for more info.</summary>
+        </command>
+        <command name="readers">
+          <summary>looks up given word in 研究社リーダーズ＋プラスＶ２. See '.help EPWING' for more info.</summary>
+        </command>
+        <command name="rikagaku">
+          <summary>looks up given word in 理化学辞典第５版. See '.help EPWING' for more info.</summary>
+        </command>
+      </commands>
+      <dependencies>
+        <dep>Menu</dep>
+        <dep>Router</dep>
+        <dep>StorageYAML</dep>
+      </dependencies>
+    </plugin>
+    <plugin name="Hello">
+      <description>
+        <summary>Says hello.</summary>
+      </description>
+      <dependencies>
+        <dep>Language</dep>
+      </dependencies>
+    </plugin>
+    <plugin name="Help">
+      <description>
+        <summary>The help plugin displays help.</summary>
+      </description>
+      <commands>
+        <command name="help">
+          <summary>lists available commands or shows information about specified command or plugin</summary>
+        </command>
+        <command name="plugins">
+          <summary>lists the loaded plugins</summary>
+        </command>
+      </commands>
+    </plugin>
+    <plugin name="IRCBot">
+      <description>
+        <summary>Provides IRC connectivity.</summary>
+      </description>
+      <dependencies>
+        <dep>ChannelPool</dep>
+        <dep>Router</dep>
+        <dep>StorageYAML</dep>
+      </dependencies>
+    </plugin>
+    <plugin name="KANJIDIC2">
+      <description>
+        <summary>A KANJIDIC2 plugin.</summary>
+      </description>
+      <commands>
+        <command name="k">
+          <summary>looks up a given kanji, or shows list of kanji satisfying given search terms, using Jim Breen's KANJIDIC2( http://www.csse.monash.edu.au/~jwb/kanjidic_doc.html ), and GSF kanji list kindly provided by Con Kolivas( http://ck.kolivas.org/Japanese/entries/index.html )</summary>
+          <section name="terms1">
+            <summary>Words in meanings ('west sake'), kun-yomi stems (in hiragana), on-yomi (in katakana), pinyin ('zhun3'), korean (in hangul), stroke count ('S10')</summary>
+          </section>
+          <section name="terms2">
+            <summary>SKIP code ('P1-4-3' or just '1-4-3', see also .faq skip), partial SKIP code (e.g. 'P1', 'P1-4', 'P*-4', 'P*-*-3'), frequency ('F15'), GSF frequency ('FG15'), grade (from 1 to 10, e.g. 'G3'), JLPT level (from 1 to 4, e.g. 'J2'), classic radical (e.g. 'C水', or number from 1 to 214, e.g. 'C15'), or constituent parts (e.g. 'PP水')</summary>
+          </section>
+          <section name="terms3">
+            <summary>You can use any space-separated combination of search terms, to find kanji that satisfies them all. As a shortcut feature, you can also lookup kanji just by stroke count without S prefix (e.g. '.k 10'), if it's the only given search term</summary>
+          </section>
+        </command>
+        <command name="k?">
+          <summary>same as .k, but gives out long results as a menu keyed with radicals</summary>
+        </command>
+        <command name="kl">
+          <summary>gives a link to the kanji entry of the specified kanji at jisho.org</summary>
+        </command>
+      </commands>
+      <dependencies>
+        <dep>Language</dep>
+        <dep>Menu</dep>
+      </dependencies>
+    </plugin>
+    <plugin name="Karma">
+      <description>
+        <summary>Stores karma and other kinds of points for users.</summary>
+      </description>
+      <commands>
+        <command name="hp">
+          <summary>shows how many hentai points the specified user has. You can give a user hentai points by writing their nick followed by '変態' or 'ロリコン', or take them using '紳士'</summary>
+        </command>
+        <command name="karma">
+          <summary>shows how many karma points the specified user has. You can give a user a karma point by writing their nick followed by '++'</summary>
+        </command>
+        <command name="lp">
+          <summary>shows how many language points the specified user has. +1 if a message contains Japanese, otherwise -1</summary>
+        </command>
+      </commands>
+      <dependencies>
+        <dep>NumberSpell</dep>
+        <dep>StorageYAML</dep>
+      </dependencies>
+    </plugin>
+    <plugin name="Language">
+      <description>
+        <summary>Provides language-related functionality.</summary>
+      </description>
+      <commands>
+        <command name="kana">
+          <summary>converts specified romazi to kana. Use lower-case for hiragana, upper-case for katakana</summary>
+        </command>
+      </commands>
+    </plugin>
+    <plugin name="Loader">
+      <description>
+        <summary>Loads, reloads, and unloads plugins.</summary>
+      </description>
+      <commands>
+        <command name="load">
+          <summary>loads or reloads specified plugin</summary>
+        </command>
+        <command name="unload">
+          <summary>unloads specified plugin</summary>
+        </command>
+      </commands>
+      <dependencies>
+        <dep>Router</dep>
+      </dependencies>
+    </plugin>
+    <plugin name="Manage">
+      <description>
+        <summary>A plugin for basic bot management.</summary>
+      </description>
+      <commands>
+        <command name="demonstrate">
+          <summary>accepts raw message without prefix, sends it to server and then acts as if received it in the usual way from sender. Example: .demonstrate PRIVMSG ##japanese :.help &lt;-- prints '.help' followed by help contents, as if sender was in ##japanese and issued .help command</summary>
+        </command>
+        <command name="join">
+          <summary>joins specified channel(s)</summary>
+        </command>
+        <command name="kill">
+          <summary>kills current connection</summary>
+        </command>
+        <command name="part">
+          <summary>parts from specified channel(s)</summary>
+        </command>
+        <command name="raw">
+          <summary>sends raw text to server</summary>
+        </command>
+        <command name="raw_ctcp">
+          <summary>&lt;destination&gt; &lt;command&gt; [args] - sends custom CTCP PRIVMSG command to destination</summary>
+        </command>
+      </commands>
+      <dependencies>
+        <dep>Router</dep>
+      </dependencies>
+    </plugin>
+    <plugin name="MapDoc">
+      <description>
+        <summary>Provides access to simple associative array of text.</summary>
+      </description>
+      <commands>
+        <command name="faq">
+          <summary>shows various faq entries</summary>
+        </command>
+        <command name="ppl">
+          <summary>shows descriptions of various channel people</summary>
+        </command>
+      </commands>
+      <dependencies>
+        <dep>StorageYAML</dep>
+      </dependencies>
+    </plugin>
+    <plugin name="Mecab">
+      <description>
+        <summary>Plugin leveraging MeCab morphological analyzer.</summary>
+      </description>
+      <commands>
+        <command name="mecab">
+          <summary>attempts to break up given japanese sentence into words, using MeCab morphological analyzer</summary>
+        </command>
+      </commands>
+      <dependencies>
+        <dep>Menu</dep>
+      </dependencies>
+    </plugin>
+    <plugin name="Menu">
+      <description>
+        <summary>Provides Menu-related functionality.</summary>
+      </description>
+      <commands>
+        <command name="n">
+          <summary>returns the next list of menu entries. Given a number, shows the list of entries starting from that position</summary>
+        </command>
+        <command name="u">
+          <summary>goes up in hierarchy of entries</summary>
+        </command>
+      </commands>
+    </plugin>
+    <plugin name="Mnemonic">
+      <description>
+        <summary>Returns mnemonics for characters.</summary>
+      </description>
+      <commands>
+        <command name="m">
+          <summary>returns a mnemonic for the specified character</summary>
+        </command>
+      </commands>
+    </plugin>
+    <plugin name="NumberSpell">
+      <description>
+        <summary>Spells out numbers in Japanese.</summary>
+      </description>
+      <commands>
+        <command name="ns">
+          <summary>spells out the specified number</summary>
+        </command>
+      </commands>
+    </plugin>
+    <plugin name="Router">
+      <description>
+        <summary>Provides inter-plugin message delivery and filtering.</summary>
+      </description>
+      <commands>
+        <command name="acl">
+          <summary>Bot access list and routing commands</summary>
+          <section name="ban">
+            <summary>denies access to the bot to any user, whose 'nick!ident@host' matches given mask. This command works only in private and only for bot operators</summary>
+          </section>
+          <section name="unban">
+            <summary>removes existing ban rule or adds ban exception. This command works only in private and only for bot operators</summary>
+          </section>
+          <section name="show">
+            <summary>shows currently effective access list. This command works only in private and only for bot operators</summary>
+          </section>
+          <section name="test">
+            <summary>matches given 'nick!ident@host' against access lists. This command works only in private and only for bot operators</summary>
+          </section>
+          <section name="op">
+            <summary>applies +o to calling user on current channel. This command works only for bot operators</summary>
+          </section>
+          <section name="deop">
+            <summary>applies -o to calling user on current channel. This command works only for bot operators</summary>
+          </section>
+        </command>
+      </commands>
+      <dependencies>
+        <dep>StorageYAML</dep>
+      </dependencies>
+    </plugin>
+    <plugin name="Seen">
+      <description>
+        <summary>A plugin that keeps track of when a user was last seen and where.</summary>
+      </description>
+      <commands>
+        <command name="seen">
+          <summary>[nick] - gives information on when [nick] was last seen. Example: .seen K5</summary>
+        </command>
+        <command name="seenwhile">
+          <summary>[text] - specifies additional text to show whenever someone uses .seen command on you. Example: .seenwhile drinking beer</summary>
+        </command>
+      </commands>
+      <dependencies>
+        <dep>StorageYAML</dep>
+      </dependencies>
+    </plugin>
+    <plugin name="Statistics">
+      <description>
+        <summary>A plugin that keeps track of various statistics.</summary>
+      </description>
+      <commands>
+        <command name="about">
+          <summary>shows short description of this bot</summary>
+        </command>
+        <command name="uptime">
+          <summary>shows how long the bot has been running</summary>
+        </command>
+        <command name="version">
+          <summary>shows the current bot version</summary>
+        </command>
+      </commands>
+    </plugin>
+    <plugin name="StorageYAML">
+      <description>
+        <summary>Provides persistent storage in YAML format for other plugins.</summary>
+      </description>
+    </plugin>
+    <plugin name="Tell">
+      <description>
+        <summary>A plugin that can pass messages between users.</summary>
+      </description>
+      <commands>
+        <command name="tell">
+          <summary>[nick] [message] (ex.: !tell K5 I will be back later) sends [message] to [nick] when he/she/it says something the next time</summary>
+        </command>
+      </commands>
+      <dependencies>
+        <dep>StorageYAML</dep>
+      </dependencies>
+    </plugin>
+    <plugin name="Translate">
+      <description>
+        <summary>Uses translation engines to translate between languages.</summary>
+      </description>
+      <commands>
+        <command name="ce">
+          <summary>translates specified text from Simplified Chinese to English using Honyaku</summary>
+        </command>
+        <command name="cj">
+          <summary>translates specified text from Simplified Chinese to Japanese using Honyaku</summary>
+        </command>
+        <command name="ck">
+          <summary>translates specified text from Simplified Chinese to Korean using Honyaku</summary>
+        </command>
+        <command name="ec">
+          <summary>translates specified text from English to Simplified Chinese using Honyaku</summary>
+        </command>
+        <command name="ej">
+          <summary>translates specified text from English to Japanese using Honyaku</summary>
+        </command>
+        <command name="ek">
+          <summary>translates specified text from English to Korean using Honyaku</summary>
+        </command>
+        <command name="g_">
+          <summary>"g&lt;from&gt;&lt;to&gt;" translates specified text using Google. Possible values for &lt;from&gt; and &lt;to&gt; are: _, en, ja, ko, fr, pt, de, it, es, no, ru, fi, hu, sv, da, pl, lt, nl, sw, zh, tw</summary>
+        </command>
+        <command name="gt">
+          <summary>attempts to guess desired translation direction for specified text and translates it using Google</summary>
+        </command>
+        <command name="h_">
+          <summary>"h&lt;from&gt;&lt;to&gt;" translates specified text using Honyaku. Possible values for &lt;from&gt; and &lt;to&gt; are: en, ja, ko, fr, pt, zh, de, it, es</summary>
+        </command>
+        <command name="ht">
+          <summary>attempts to guess desired translation direction for specified text and translates it using Honyaku</summary>
+        </command>
+        <command name="jc">
+          <summary>translates specified text from Japanese to Simplified Chinese using Honyaku</summary>
+        </command>
+        <command name="je">
+          <summary>translates specified text from Japanese to English using Honyaku</summary>
+        </command>
+        <command name="jk">
+          <summary>translates specified text from Japanese to Korean using Honyaku</summary>
+        </command>
+        <command name="kc">
+          <summary>translates specified text from Korean to Simplified Chinese using Honyaku</summary>
+        </command>
+        <command name="ke">
+          <summary>translates specified text from Korean to English using Honyaku</summary>
+        </command>
+        <command name="kj">
+          <summary>translates specified text from Korean to Japanese using Honyaku</summary>
+        </command>
+        <command name="langs">
+          <summary>shows languages supported by this plugin (note that not all of them are available for all translation engines)</summary>
+        </command>
+        <command name="t">
+          <summary>is a shortcut for 'ht' command</summary>
+        </command>
+        <command name="x_">
+          <summary>"x&lt;from&gt;&lt;to&gt;" translates specified text using Excite. Possible values for &lt;from&gt; and &lt;to&gt; are: en, ja</summary>
+        </command>
+        <command name="xt">
+          <summary>attempts to guess desired translation direction for specified text and translates it using Excite</summary>
+        </command>
+      </commands>
+      <dependencies>
+        <dep>Language</dep>
+      </dependencies>
+    </plugin>
+    <plugin name="URL">
+      <description>
+        <summary>Implements URL preview</summary>
+      </description>
+      <commands>
+        <command name="short">
+          <summary>shortens a previously seen URL with goo.gl. This command can accept either index (1 is the most recent one) or substring of the desired URL</summary>
+        </command>
+      </commands>
+    </plugin>
+    <plugin name="Unicode">
+      <description>
+        <summary>A plugin that counts and manages Unicode statistics.</summary>
+      </description>
+      <commands>
+        <command name="u?">
+          <summary>classify given text by Unicode ranges</summary>
+        </command>
+        <command name="u??">
+          <summary>output Unicode codepoints in hexadecimal for given text</summary>
+        </command>
+        <command name="urank">
+          <summary>shows user's ranks with respect to other users, as determined by the number of characters written per Unicode range</summary>
+        </command>
+        <command name="urank%">
+          <summary>same as .urank, but the percentages as returned by .us% are compared instead</summary>
+        </command>
+        <command name="us">
+          <summary>shows Unicode statistics: number of characters per Unicode range written by the specified user</summary>
+        </command>
+        <command name="us%">
+          <summary>same as .us, but shows percentage ratio to the total number of characters written by the user</summary>
+        </command>
+        <command name="utop">
+          <summary>shows top 10 users, as determined by the number of characters written per specified Unicode range</summary>
+        </command>
+        <command name="utop%">
+          <summary>same as .utop, but the percentages as returned by .us% are compared instead</summary>
+        </command>
+        <command name="uu">
+          <summary>output Unicode description urls for given text</summary>
+        </command>
+      </commands>
+      <dependencies>
+        <dep>Language</dep>
+        <dep>NumberSpell</dep>
+        <dep>StorageYAML</dep>
+      </dependencies>
+    </plugin>
+    <plugin name="WebScrape">
+      <description>
+        <summary>Provides access to data from various web sites</summary>
+      </description>
+      <commands>
+        <command name="gogen">
+          <summary>searches gogen-allguide.com for given word etymology. Warning: it gives out only the first 24 results</summary>
+        </command>
+      </commands>
+      <dependencies>
+        <dep>Language</dep>
+        <dep>Menu</dep>
+        <dep>URL</dep>
+      </dependencies>
+    </plugin>
+    <plugin name="WolframAlpha">
+      <description>
+        <summary>a plugin for working with WolframAlpha.</summary>
+      </description>
+      <commands>
+        <command name="wa">
+          <summary>queries WolframAlpha</summary>
+        </command>
+      </commands>
+      <dependencies>
+        <dep>Menu</dep>
+      </dependencies>
+    </plugin>
+    <plugin name="YEDICT">
+      <description>
+        <summary>A YEDICT plugin.</summary>
+      </description>
+      <commands>
+        <command name="cn">
+          <summary>looks up a Cantonese word in YEDICT</summary>
+        </command>
+      </commands>
+      <dependencies>
+        <dep>Language</dep>
+        <dep>Menu</dep>
+      </dependencies>
+    </plugin>
+  </plugins>
+</help>
