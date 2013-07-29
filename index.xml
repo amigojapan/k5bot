@@ -61,6 +61,15 @@
         <command name="chat">
           <summary>sends a DCC CHAT request back to the caller</summary>
         </command>
+        <command name="dcc_kill">
+          <summary>allows to show and kill DCC connections from current user. When no arguments supplied, shows connections. Accepts any of: connection number (e.g. 12345), 'current' (kills current connection), 'other' (kills all but current connection), 'all'. Example: .dcc_kill other</summary>
+        </command>
+        <command name="dcc_reg">
+          <summary>associates given DCC connection credentials with the current IRC user. The credentials are given out on every DCC connection attempt from user.</summary>
+        </command>
+        <command name="dcc_unreg">
+          <summary>disassociates given DCC connection credentials from the current IRC user. The credentials are given out on every DCC connection from user.</summary>
+        </command>
         <command name="schat">
           <summary>sends a DCC SCHAT (SSL-encrypted chat) request back to the caller</summary>
         </command>
@@ -115,14 +124,25 @@
         <command name="j">
           <summary>looks up a Japanese word in EDICT</summary>
         </command>
-        <command name="jmark">
-          <summary>shows the description of an EDICT/ENAMDICT marker</summary>
+        <command name="jr">
+          <summary>searches Japanese words matching given regexp in EDICT. In addition to standard regexp operators (e.g. ^,$,*), special operators &amp; and &amp;&amp; are supported. Operator &amp; is a way to match several regexps (e.g. 'A &amp; B &amp; C' will only match words, that contain all of A, B and C letters, in any order). Operator &amp;&amp; is a way to specify separate conditions on kanji and reading (e.g. '物 &amp;&amp; もつ').  Classes: \k (kana), \K (non-kana)</summary>
         </command>
+      </commands>
+      <dependencies>
+        <dep>Language</dep>
+        <dep>Menu</dep>
+      </dependencies>
+    </plugin>
+    <plugin name="ENAMDICT">
+      <description>
+        <summary>An ENAMDICT plugin.</summary>
+      </description>
+      <commands>
         <command name="jn">
           <summary>looks up a Japanese word in ENAMDICT</summary>
         </command>
-        <command name="jr">
-          <summary>searches Japanese words matching given regexp in EDICT. In addition to standard regexp operators (e.g. ^,$,*), special operators &amp; and &amp;&amp; are supported. Operator &amp; is a way to match several regexps (e.g. 'A &amp; B &amp; C' will only match words, that contain all of A, B and C letters, in any order). Operator &amp;&amp; is a way to specify separate conditions on kanji and reading (e.g. '物 &amp;&amp; もつ').  Classes: \k (kana), \K (non-kana)</summary>
+        <command name="jnr">
+          <summary>searches Japanese words matching given regexp in ENAMDICT. In addition to standard regexp operators (e.g. ^,$,*), special operators &amp; and &amp;&amp; are supported. Operator &amp; is a way to match several regexps (e.g. 'A &amp; B &amp; C' will only match words, that contain all of A, B and C letters, in any order). Operator &amp;&amp; is a way to specify separate conditions on kanji and reading (e.g. '物 &amp;&amp; もつ').  Classes: \k (kana), \K (non-kana)</summary>
         </command>
       </commands>
       <dependencies>
@@ -338,6 +358,9 @@ doesn't substitute gaiji. The exact meaning of search modes seems to vary with d
       <commands>
         <command name="faq">
           <summary>shows various faq entries</summary>
+        </command>
+        <command name="jmark">
+          <summary>shows the description of an EDICT/ENAMDICT marker</summary>
         </command>
         <command name="ppl">
           <summary>shows descriptions of various channel people</summary>
