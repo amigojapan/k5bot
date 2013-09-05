@@ -15,6 +15,23 @@
         </command>
       </commands>
     </plugin>
+    <plugin name="Auth">
+      <description>
+        <summary>Auth plugin provides functions for authentication and authorization</summary>
+      </description>
+      <commands>
+        <command name="cred_reg">
+          <summary>associates given credentials with the current IRC user.</summary>
+        </command>
+        <command name="cred_unreg">
+          <summary>disassociates given credentials from the current IRC user.</summary>
+        </command>
+      </commands>
+      <dependencies>
+        <dep>Router</dep>
+        <dep>StorageYAML</dep>
+      </dependencies>
+    </plugin>
     <plugin name="CEDICT">
       <description>
         <summary>A CEDICT plugin.</summary>
@@ -31,11 +48,6 @@
         <dep>Language</dep>
         <dep>Menu</dep>
       </dependencies>
-    </plugin>
-    <plugin name="ChannelPool">
-      <description>
-        <summary>Provides channel resolution service and maintains various related information.</summary>
-      </description>
     </plugin>
     <plugin name="Clock">
       <description>
@@ -64,20 +76,11 @@
         <command name="dcc_kill">
           <summary>allows to show and kill DCC connections from current user. When no arguments supplied, shows connections. Accepts any of: connection number (e.g. 12345), 'current' (kills current connection), 'other' (kills all but current connection), 'all'. Example: .dcc_kill other</summary>
         </command>
-        <command name="dcc_reg">
-          <summary>associates given DCC connection credentials with the current IRC user. The credentials are given out on every DCC connection attempt from user.</summary>
-        </command>
-        <command name="dcc_unreg">
-          <summary>disassociates given DCC connection credentials from the current IRC user. The credentials are given out on every DCC connection from user.</summary>
-        </command>
-        <command name="schat">
-          <summary>sends a DCC SCHAT (SSL-encrypted chat) request back to the caller</summary>
-        </command>
       </commands>
       <dependencies>
+        <dep>Auth</dep>
         <dep>IRCBot</dep>
         <dep>Router</dep>
-        <dep>StorageYAML</dep>
       </dependencies>
     </plugin>
     <plugin name="Daijirin">
@@ -92,10 +95,7 @@
           <summary>looks up a Japanese word in Daijirin</summary>
         </command>
         <command name="djr">
-          <summary>searches Japanese words matching given regexp in Daijirin. In addition to standard regexp operators (e.g. ^,$,*), special operators &amp; and &amp;&amp; are supported. Operator &amp; is a way to match several regexps (e.g. 'A &amp; B &amp; C' will only match words, that contain all of A, B and C letters, in any order). Operator &amp;&amp; is a way to specify separate conditions on kanji and reading (e.g. '物 &amp;&amp; もつ'). Classes: \k (kana), \K (non-kana)</summary>
-        </command>
-        <command name="du">
-          <summary>Generates an url for lookup in dic.yahoo.jp</summary>
+          <summary>searches Japanese words matching given regexp in Daijirin. See '.faq regexp'</summary>
         </command>
       </commands>
       <dependencies>
@@ -125,7 +125,7 @@
           <summary>looks up a Japanese word in EDICT</summary>
         </command>
         <command name="jr">
-          <summary>searches Japanese words matching given regexp in EDICT. In addition to standard regexp operators (e.g. ^,$,*), special operators &amp; and &amp;&amp; are supported. Operator &amp; is a way to match several regexps (e.g. 'A &amp; B &amp; C' will only match words, that contain all of A, B and C letters, in any order). Operator &amp;&amp; is a way to specify separate conditions on kanji and reading (e.g. '物 &amp;&amp; もつ').  Classes: \k (kana), \K (non-kana)</summary>
+          <summary>searches Japanese words matching given regexp in EDICT. See '.faq regexp'</summary>
         </command>
       </commands>
       <dependencies>
@@ -142,7 +142,7 @@
           <summary>looks up a Japanese word in ENAMDICT</summary>
         </command>
         <command name="jnr">
-          <summary>searches Japanese words matching given regexp in ENAMDICT. In addition to standard regexp operators (e.g. ^,$,*), special operators &amp; and &amp;&amp; are supported. Operator &amp; is a way to match several regexps (e.g. 'A &amp; B &amp; C' will only match words, that contain all of A, B and C letters, in any order). Operator &amp;&amp; is a way to specify separate conditions on kanji and reading (e.g. '物 &amp;&amp; もつ').  Classes: \k (kana), \K (non-kana)</summary>
+          <summary>searches Japanese words matching given regexp in ENAMDICT. See '.faq regexp'</summary>
         </command>
       </commands>
       <dependencies>
@@ -157,7 +157,7 @@
           <summary>Searching is straightforward, but it's worth noting that since used EPWING library searches both English and Japanese words via the same call, no convenient input word mangling is done. In particular, text in ro-maji isn't converted to kana, you must do it yourself. You can also use .epwing command to search in all available dictionaries simultaneously.</summary>
         </section>
         <section name="postfix">
-          <summary>Search commands can (where supported by underlying dictionary) be postfixed with one of the following: ! for exact search, $ for ends-with search, @ for keyword search. No postfix is 'contains' search. ~ is the same, but
+          <summary>Search commands can (where supported by underlying dictionary) be postfixed with one of the following: ! for exact search, $ for ends-with search, @ for keyword search. No postfix is 'contains' search. # is the same, but
 doesn't substitute gaiji. The exact meaning of search modes seems to vary with dictionary, so try and find what suits you best.</summary>
         </section>
         <section name="gaiji">
@@ -243,7 +243,6 @@ doesn't substitute gaiji. The exact meaning of search modes seems to vary with d
         <summary>Provides IRC connectivity.</summary>
       </description>
       <dependencies>
-        <dep>ChannelPool</dep>
         <dep>Router</dep>
         <dep>StorageYAML</dep>
       </dependencies>
@@ -305,6 +304,9 @@ doesn't substitute gaiji. The exact meaning of search modes seems to vary with d
         <command name="kana">
           <summary>converts specified romazi to kana. Use lower-case for hiragana, upper-case for katakana</summary>
         </command>
+        <command name="romaja">
+          <summary>converts given hangul to romaja</summary>
+        </command>
       </commands>
     </plugin>
     <plugin name="Loader">
@@ -361,6 +363,12 @@ doesn't substitute gaiji. The exact meaning of search modes seems to vary with d
         </command>
         <command name="jmark">
           <summary>shows the description of an EDICT/ENAMDICT marker</summary>
+        </command>
+        <command name="new_kanji">
+          <summary>shows new form (新字体) for given old kanji (旧字体)</summary>
+        </command>
+        <command name="old_kanji">
+          <summary>shows old form (旧字体) for given new kanji (新字体)</summary>
         </command>
         <command name="ppl">
           <summary>shows descriptions of various channel people</summary>
