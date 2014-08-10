@@ -65,6 +65,11 @@
         </command>
       </commands>
     </plugin>
+    <plugin name="Connectix">
+      <description>
+        <summary>Stacked-functionality IO procuring plugin.</summary>
+      </description>
+    </plugin>
     <plugin name="DCC">
       <description>
         <summary>Direct Client-to-Client protocol plugin.</summary>
@@ -192,6 +197,9 @@ doesn't substitute gaiji. The exact meaning of search modes seems to vary with d
         <command name="genius">
           <summary>looks up given word in ジーニアス英和大辞典. See '.help EPWING' for more info.</summary>
         </command>
+        <command name="kagaku">
+          <summary>looks up given word in 日外３５万語科学技術用語大辞典. See '.help EPWING' for more info.</summary>
+        </command>
         <command name="kojien">
           <summary>looks up given word in 広辞苑第六版. See '.help EPWING' for more info.</summary>
         </command>
@@ -200,6 +208,9 @@ doesn't substitute gaiji. The exact meaning of search modes seems to vary with d
           <section name="usage">
             <summary>This dictionary seems to accept only kana for search.</summary>
           </section>
+        </command>
+        <command name="meikyo">
+          <summary>looks up given word in 明鏡国語辞典. See '.help EPWING' for more info.</summary>
         </command>
         <command name="nihonshi">
           <summary>looks up given word in 岩波日本史辞典ＣＤ‐ＲＯＭ版. See '.help EPWING' for more info.</summary>
@@ -215,6 +226,38 @@ doesn't substitute gaiji. The exact meaning of search modes seems to vary with d
         <dep>Menu</dep>
         <dep>Router</dep>
         <dep>StorageYAML</dep>
+      </dependencies>
+    </plugin>
+    <plugin name="Git">
+      <description>
+        <summary>Plugin to run git pull.</summary>
+      </description>
+      <commands>
+        <command name="pull">
+          <summary>fetches changes from upstream and resets current branch and working directory to reflect it</summary>
+        </command>
+        <command name="upstream">
+          <summary>shows from where changes are pulled</summary>
+        </command>
+      </commands>
+      <dependencies>
+        <dep>Statistics</dep>
+      </dependencies>
+    </plugin>
+    <plugin name="Googler">
+      <description>
+        <summary>Provides access to various Google services</summary>
+      </description>
+      <commands>
+        <command name="g">
+          <summary>searches Google and returns the first result</summary>
+        </command>
+        <command name="g?">
+          <summary>searches Google and returns results as a menu</summary>
+        </command>
+      </commands>
+      <dependencies>
+        <dep>Menu</dep>
       </dependencies>
     </plugin>
     <plugin name="Hello">
@@ -243,6 +286,7 @@ doesn't substitute gaiji. The exact meaning of search modes seems to vary with d
         <summary>Provides IRC connectivity.</summary>
       </description>
       <dependencies>
+        <dep>Connectix</dep>
         <dep>Router</dep>
         <dep>StorageYAML</dep>
       </dependencies>
@@ -276,13 +320,41 @@ doesn't substitute gaiji. The exact meaning of search modes seems to vary with d
         <dep>Menu</dep>
       </dependencies>
     </plugin>
+    <plugin name="Kanastats">
+      <description>
+        <summary>Statistics plugin logging all public conversation and providing tools to analyze it.</summary>
+      </description>
+      <commands>
+        <command name="charstats">
+          <summary>How often the specified char was publicly used.</summary>
+        </command>
+        <command name="hirastats">
+          <summary>Returns hiragana usage statistics.</summary>
+        </command>
+        <command name="katastats">
+          <summary>Returns katakana usage statistics.</summary>
+        </command>
+        <command name="logged">
+          <summary>Displays information about the log files.</summary>
+        </command>
+        <command name="wordfight!">
+          <summary>Compares count of words.</summary>
+        </command>
+        <command name="wordstats">
+          <summary>How often the specified word was publicly used.</summary>
+        </command>
+      </commands>
+      <dependencies>
+        <dep>StorageYAML</dep>
+      </dependencies>
+    </plugin>
     <plugin name="Karma">
       <description>
         <summary>Stores karma and other kinds of points for users.</summary>
       </description>
       <commands>
         <command name="hp">
-          <summary>shows how many hentai points the specified user has. You can give a user hentai points by writing their nick followed by '変態' or 'ロリコン', or take them using '紳士'</summary>
+          <summary>shows how many hentai points the specified user has. You can give a user hentai points by writing their nick followed by '変態' or 'ショタコン' or 'ロリコン', or take them using '紳士'</summary>
         </command>
         <command name="karma">
           <summary>shows how many karma points the specified user has. You can give a user a karma point by writing their nick followed by '++'</summary>
@@ -295,6 +367,22 @@ doesn't substitute gaiji. The exact meaning of search modes seems to vary with d
         <dep>NumberSpell</dep>
         <dep>StorageYAML</dep>
       </dependencies>
+    </plugin>
+    <plugin name="Kotobank">
+      <description>
+        <summary>Returns link to kotobank.jp/weblio.jp/kobun.weblio.jp lookup.</summary>
+      </description>
+      <commands>
+        <command name="du">
+          <summary>returns kotobank link</summary>
+        </command>
+        <command name="wk">
+          <summary>returns kobun.weblio link</summary>
+        </command>
+        <command name="wl">
+          <summary>returns weblio link</summary>
+        </command>
+      </commands>
     </plugin>
     <plugin name="Language">
       <description>
@@ -353,6 +441,16 @@ doesn't substitute gaiji. The exact meaning of search modes seems to vary with d
         <dep>Router</dep>
       </dependencies>
     </plugin>
+    <plugin name="Manyougana">
+      <description>
+        <summary>Rômazi to man'yôgana coverter.</summary>
+      </description>
+      <commands>
+        <command name="manyougana">
+          <summary>Converts from rômazi to man'yôgana. Requires numeral notation for Old Japanese vowels. Since there exist multiple man'yôgana for each mora, the final choice will be random.</summary>
+        </command>
+      </commands>
+    </plugin>
     <plugin name="MapDoc">
       <description>
         <summary>Provides access to simple associative array of text.</summary>
@@ -391,6 +489,16 @@ doesn't substitute gaiji. The exact meaning of search modes seems to vary with d
         <dep>Menu</dep>
       </dependencies>
     </plugin>
+    <plugin name="Memory">
+      <description>
+        <summary>Monitors memory usage.</summary>
+      </description>
+      <commands>
+        <command name="free">
+          <summary>reports memory info</summary>
+        </command>
+      </commands>
+    </plugin>
     <plugin name="Menu">
       <description>
         <summary>Provides Menu-related functionality.</summary>
@@ -424,6 +532,25 @@ doesn't substitute gaiji. The exact meaning of search modes seems to vary with d
         </command>
       </commands>
     </plugin>
+    <plugin name="Pinyin">
+      <description>
+        <summary>Hanzi conversion plugin.</summary>
+      </description>
+      <commands>
+        <command name="ipa">
+          <summary>convert hanzi to ipa</summary>
+        </command>
+        <command name="pinyin">
+          <summary>convert hanzi to pinyin</summary>
+        </command>
+        <command name="wadegiles">
+          <summary>convert hanzi to wadegiles</summary>
+        </command>
+        <command name="zhuyin">
+          <summary>convert hanzi to zhuyin (bopomofo)</summary>
+        </command>
+      </commands>
+    </plugin>
     <plugin name="Router">
       <description>
         <summary>Provides inter-plugin message delivery and filtering.</summary>
@@ -442,6 +569,12 @@ doesn't substitute gaiji. The exact meaning of search modes seems to vary with d
           </section>
           <section name="test">
             <summary>matches given 'nick!ident@host' against access lists. This command works only in private and only for bot operators</summary>
+          </section>
+          <section name="add">
+            <summary>adds to a given access list a given mask. This command works only in private and only for bot operators</summary>
+          </section>
+          <section name="del">
+            <summary>deletes from a given access list a given mask. This command works only in private and only for bot operators</summary>
           </section>
           <section name="op">
             <summary>applies +o to calling user on current channel. This command works only for bot operators</summary>
@@ -505,6 +638,52 @@ doesn't substitute gaiji. The exact meaning of search modes seems to vary with d
         <dep>StorageYAML</dep>
       </dependencies>
     </plugin>
+    <plugin name="TextMiner">
+      <description>
+        <summary>TextMiner plugin provides access, search, and stats for underlying text corpus.</summary>
+      </description>
+      <commands>
+        <command name="context">
+          <summary>Moves to and shows preceeding line in current file. Optionally accepts a number(can be negative) for relative jumping.</summary>
+        </command>
+        <command name="contextf">
+          <summary>Same as .context, but moves forward.</summary>
+        </command>
+        <command name="example">
+          <summary>Searches all files for lines containing a given text. Repeated invocation with the same text or without text at all is equivalent to .nextexample</summary>
+        </command>
+        <command name="exampler">
+          <summary>Same as .example, but accepts a regexp.</summary>
+        </command>
+        <command name="nextexample">
+          <summary>Returns the next one from the lines found by .example/regexample. Optionally accepts a number(can be negative) for relative jumping.</summary>
+        </command>
+        <command name="vnhits">
+          <summary>Shows how many times a given text occurs per each file.</summary>
+        </command>
+        <command name="vnhitsr">
+          <summary>Same as .vnhits, but accepts a regexp.</summary>
+        </command>
+        <command name="wherefrom">
+          <summary>Shows which file the last viewed line is from.</summary>
+        </command>
+        <command name="wordcount">
+          <summary>Shows usage counts in all files for given words.</summary>
+        </command>
+        <command name="wordcountr">
+          <summary>Same as .wordcount, but for everything matching given regexp. If the regexp contains round-braced groups, only text matching these groups is returned.</summary>
+        </command>
+        <command name="wordfight">
+          <summary>Same as .wordcount, but also sorted by frequency.</summary>
+        </command>
+        <command name="wordfightr">
+          <summary>Same as .wordcountr, but also sorted by frequency.</summary>
+        </command>
+      </commands>
+      <dependencies>
+        <dep>Language</dep>
+      </dependencies>
+    </plugin>
     <plugin name="Translate">
       <description>
         <summary>Uses translation engines to translate between languages.</summary>
@@ -529,7 +708,7 @@ doesn't substitute gaiji. The exact meaning of search modes seems to vary with d
           <summary>translates specified text from English to Korean using Honyaku</summary>
         </command>
         <command name="g_">
-          <summary>"g&lt;from&gt;&lt;to&gt;" translates specified text using Google. Possible values for &lt;from&gt; and &lt;to&gt; are: _, en, ja, ko, fr, pt, de, it, es, no, ru, fi, hu, sv, da, pl, lt, nl, sw, zh, tw</summary>
+          <summary>"g&lt;from&gt;&lt;to&gt;" translates specified text using Google. Possible values for &lt;from&gt; and &lt;to&gt; are: _, en, ja, ko, fr, pt, de, it, es, no, ru, fi, hu, sv, da, pl, lt, nl, sw, ar, zh, tw</summary>
         </command>
         <command name="gt">
           <summary>attempts to guess desired translation direction for specified text and translates it using Google</summary>
@@ -631,6 +810,12 @@ doesn't substitute gaiji. The exact meaning of search modes seems to vary with d
       <commands>
         <command name="gogen">
           <summary>searches gogen-allguide.com for given word etymology. Warning: it gives out only the first 24 results</summary>
+        </command>
+        <command name="jishin">
+          <summary>shows information about a recent earthquake event in Japan. Optionally accepts index (1 is the most recent event).</summary>
+        </command>
+        <command name="jishin?">
+          <summary>shows latest earthquake event per location. Locations shown as menu items, ordered by recency.</summary>
         </command>
       </commands>
       <dependencies>
